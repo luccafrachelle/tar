@@ -1,0 +1,15 @@
+\begin{tikzpicture}[node distance=3cm, >=Stealth, auto, state/.style={circle, draw, minimum size=1cm}]
+    \node[state] (s1) {1};
+    \node[state, right of=s1] (s2) {2};
+    \node[state, right of=s2] (s3) {3};
+    \node[state, right of=s3] (s4) {4};
+
+    \path[->]
+        (s4) edge [loop above] node {$1-\theta$} (s4)
+        (s4) edge node[above] {$\theta$} (s3)
+        (s3) edge [loop above] node {$1-\theta$} (s3)
+        (s3) edge node[above] {$\theta$} (s2)
+        (s2) edge [loop above] node {$1-\theta$} (s2)
+        (s2) edge node[above] {$\theta$} (s1)
+        (s1) edge [loop above] node {1} (s1);
+\end{tikzpicture}
