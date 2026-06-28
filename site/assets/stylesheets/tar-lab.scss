@@ -1,0 +1,12 @@
+/*-- scss:defaults --*/
+// Ajustes compartidos para labs y notas TAR (complementa theme.scss)
+
+/*-- scss:rules --*/
+
+// Ocultar metadatos vacíos del title block (alternativa al script de cleanup)
+header#title-block-header {
+  div:empty,
+  p:empty {
+    display: none;
+  }
+}
