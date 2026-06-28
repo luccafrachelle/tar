@@ -1,0 +1,54 @@
+<style>
+
+.p3-tbl-wrap { margin: .75rem 0 1.25rem; max-width: 100%; }
+.p3-tbl-wrap .p3-tbl-input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.p3-tbl-wrap .p3-tbl-panel { display: none; overflow-x: auto; }
+.p3-tbl-wrap .p3-tbl-tabs {
+  display: flex; gap: .45rem; margin-bottom: .65rem; flex-wrap: wrap;
+}
+.p3-tbl-wrap .p3-tbl-tab {
+  display: inline-block; border: 1px solid var(--bs-border-color, #dde3ea);
+  background: var(--bs-body-bg, #fff); color: inherit; border-radius: 8px;
+  padding: .4rem .85rem; font-size: .88rem; font-weight: 600; cursor: pointer;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.p3-tbl-wrap .p3-tbl-tab:hover { border-color: #2563eb; background: #dbeafe; }
+#p3-tbl-main:checked ~ .p3-tbl-tabs label[for='p3-tbl-main'],
+#p3-tbl-cmp:checked ~ .p3-tbl-tabs label[for='p3-tbl-cmp'] {
+  border-color: #2563eb; background: #dbeafe;
+  box-shadow: 0 0 0 2px rgba(37,99,235,.22);
+}
+#p3-tbl-main:checked ~ .p3-tbl-panels .p3-tbl-panel-main { display: block; }
+#p3-tbl-cmp:checked ~ .p3-tbl-panels .p3-tbl-panel-cmp { display: block; }
+.p3-tbl {
+  width: 100%; border-collapse: collapse; font-size: .88rem;
+  margin: 0; line-height: 1.35;
+}
+.p3-tbl th, .p3-tbl td {
+  border: 1px solid var(--bs-border-color, #dde3ea);
+  padding: .38rem .5rem; text-align: center; vertical-align: middle;
+}
+.p3-tbl thead th { background: var(--bs-tertiary-bg, #f3f5f7); font-weight: 650; }
+.p3-tbl tbody tr:nth-child(even) { background: rgba(0,0,0,.02); }
+.p3-baseline-row { background: #fff7ed !important; font-style: normal; }
+.p3-tbl-note {
+  font-size: .82rem; color: var(--bs-secondary-color, #5c6570);
+  margin: 0 0 .55rem; line-height: 1.45;
+}
+.p3-delta-good { color: #15803d; font-weight: 600; }
+.p3-delta-bad { color: #b91c1c; font-weight: 600; }
+.p3-delta-neutral { color: inherit; }
+
+</style>
+<div class="p3-tbl-wrap">
+  <input type="radio" name="p3-tbl-view" id="p3-tbl-main" class="p3-tbl-input" checked>
+  <input type="radio" name="p3-tbl-view" id="p3-tbl-cmp" class="p3-tbl-input">
+  <div class="p3-tbl-tabs">
+    <label for="p3-tbl-main" class="p3-tbl-tab">Resultados del barrido</label>
+    <label for="p3-tbl-cmp" class="p3-tbl-tab">Comparación vs. aleatoria</label>
+  </div>
+  <div class="p3-tbl-panels">
+    <div class="p3-tbl-panel p3-tbl-panel-main"><table class="p3-tbl"><thead><tr><th><em>H</em></th><th><em>T</em></th><th>Recompensa</th><th>Choque</th><th>Longitud</th><th>Tiempo (s)</th><th>¿Resuelve?</th></tr></thead><tbody><tr><td>16</td><td>1 000</td><td>9.17</td><td>0%</td><td>11.0</td><td>15</td><td>no</td></tr><tr><td>16</td><td>5 000</td><td>9.27</td><td>27%</td><td>10.5</td><td>72</td><td>no</td></tr><tr><td>16</td><td>20 000</td><td>10.07</td><td>13%</td><td>10.8</td><td>292</td><td>no</td></tr><tr><td>16</td><td>50 000</td><td>9.54</td><td>20%</td><td>10.7</td><td>732</td><td>no</td></tr><tr><td>32</td><td>1 000</td><td>8.48</td><td>33%</td><td>9.4</td><td>15</td><td>no</td></tr><tr><td>32</td><td>5 000</td><td>8.61</td><td>40%</td><td>9.5</td><td>75</td><td>no</td></tr><tr><td>32</td><td>20 000</td><td>9.79</td><td>20%</td><td>10.5</td><td>297</td><td>no</td></tr><tr><td>32</td><td>50 000</td><td>9.74</td><td>7%</td><td>11.0</td><td>741</td><td><strong>sí</strong></td></tr><tr><td>64</td><td>1 000</td><td>5.76</td><td>53%</td><td>6.2</td><td>15</td><td>no</td></tr><tr><td>64</td><td>5 000</td><td>9.66</td><td>27%</td><td>10.4</td><td>74</td><td>no</td></tr><tr><td>64</td><td>20 000</td><td>9.81</td><td>13%</td><td>10.7</td><td>296</td><td>no</td></tr><tr><td>64</td><td>50 000</td><td>9.70</td><td>7%</td><td>10.8</td><td>741</td><td><strong>sí</strong></td></tr><tr><td>128</td><td>1 000</td><td>7.72</td><td>47%</td><td>9.2</td><td>17</td><td>no</td></tr><tr><td>128</td><td>5 000</td><td>9.62</td><td>20%</td><td>10.7</td><td>80</td><td>no</td></tr><tr><td>128</td><td>20 000</td><td>9.52</td><td>20%</td><td>10.5</td><td>302</td><td>no</td></tr><tr><td>128</td><td>50 000</td><td>9.94</td><td>7%</td><td>10.9</td><td>743</td><td><strong>sí</strong></td></tr><tr><td>256</td><td>1 000</td><td>8.37</td><td>33%</td><td>9.3</td><td>15</td><td>no</td></tr><tr><td>256</td><td>5 000</td><td>9.71</td><td>7%</td><td>11.0</td><td>76</td><td><strong>sí</strong></td></tr><tr><td>256</td><td>20 000</td><td>9.82</td><td>7%</td><td>10.9</td><td>304</td><td><strong>sí</strong></td></tr><tr><td>256</td><td>50 000</td><td>5.78</td><td>73%</td><td>6.8</td><td>766</td><td>no</td></tr></tbody></table></div>
+    <div class="p3-tbl-panel p3-tbl-panel-cmp"><p class="p3-tbl-note">Referencia aleatoria: recompensa 8.46, choque 20%, longitud 9.5 pasos. Solo diferencias PPO − aleatoria (choque en puntos porcentuales; positivo = menos choques). ¿Supera aleatoria? = las tres Δ son estrictamente positivas.</p><table class="p3-tbl p3-tbl-cmp"><thead><tr><th><em>H</em></th><th><em>T</em></th><th>Δ Recompensa</th><th>Δ Choque</th><th>Δ Longitud</th><th>¿Supera aleatoria?</th></tr></thead><tbody><tr class='p3-baseline-row'><td colspan='2'><strong>Aleatoria</strong></td><td>0.00</td><td>0 pp</td><td>0.0</td><td>referencia</td></tr><tr><td>16</td><td>1 000</td><td class='p3-delta-good'>+0.71</td><td class='p3-delta-good'>+20 pp</td><td class='p3-delta-good'>+1.5</td><td><strong>sí</strong></td></tr><tr><td>16</td><td>5 000</td><td class='p3-delta-good'>+0.81</td><td class='p3-delta-bad'>-7 pp</td><td class='p3-delta-good'>+1.0</td><td>no</td></tr><tr><td>16</td><td>20 000</td><td class='p3-delta-good'>+1.61</td><td class='p3-delta-good'>+7 pp</td><td class='p3-delta-good'>+1.3</td><td><strong>sí</strong></td></tr><tr><td>16</td><td>50 000</td><td class='p3-delta-good'>+1.09</td><td class='p3-delta-neutral'>+0 pp</td><td class='p3-delta-good'>+1.1</td><td>no</td></tr><tr><td>32</td><td>1 000</td><td class='p3-delta-good'>+0.02</td><td class='p3-delta-bad'>-13 pp</td><td class='p3-delta-bad'>-0.1</td><td>no</td></tr><tr><td>32</td><td>5 000</td><td class='p3-delta-good'>+0.15</td><td class='p3-delta-bad'>-20 pp</td><td class='p3-delta-neutral'>-0.0</td><td>no</td></tr><tr><td>32</td><td>20 000</td><td class='p3-delta-good'>+1.34</td><td class='p3-delta-neutral'>+0 pp</td><td class='p3-delta-good'>+1.0</td><td>no</td></tr><tr><td>32</td><td>50 000</td><td class='p3-delta-good'>+1.28</td><td class='p3-delta-good'>+13 pp</td><td class='p3-delta-good'>+1.5</td><td><strong>sí</strong></td></tr><tr><td>64</td><td>1 000</td><td class='p3-delta-bad'>-2.70</td><td class='p3-delta-bad'>-33 pp</td><td class='p3-delta-bad'>-3.3</td><td>no</td></tr><tr><td>64</td><td>5 000</td><td class='p3-delta-good'>+1.20</td><td class='p3-delta-bad'>-7 pp</td><td class='p3-delta-good'>+0.9</td><td>no</td></tr><tr><td>64</td><td>20 000</td><td class='p3-delta-good'>+1.35</td><td class='p3-delta-good'>+7 pp</td><td class='p3-delta-good'>+1.2</td><td><strong>sí</strong></td></tr><tr><td>64</td><td>50 000</td><td class='p3-delta-good'>+1.24</td><td class='p3-delta-good'>+13 pp</td><td class='p3-delta-good'>+1.3</td><td><strong>sí</strong></td></tr><tr><td>128</td><td>1 000</td><td class='p3-delta-bad'>-0.74</td><td class='p3-delta-bad'>-27 pp</td><td class='p3-delta-bad'>-0.3</td><td>no</td></tr><tr><td>128</td><td>5 000</td><td class='p3-delta-good'>+1.16</td><td class='p3-delta-neutral'>+0 pp</td><td class='p3-delta-good'>+1.1</td><td>no</td></tr><tr><td>128</td><td>20 000</td><td class='p3-delta-good'>+1.06</td><td class='p3-delta-neutral'>+0 pp</td><td class='p3-delta-good'>+1.0</td><td>no</td></tr><tr><td>128</td><td>50 000</td><td class='p3-delta-good'>+1.48</td><td class='p3-delta-good'>+13 pp</td><td class='p3-delta-good'>+1.4</td><td><strong>sí</strong></td></tr><tr><td>256</td><td>1 000</td><td class='p3-delta-bad'>-0.09</td><td class='p3-delta-bad'>-13 pp</td><td class='p3-delta-bad'>-0.2</td><td>no</td></tr><tr><td>256</td><td>5 000</td><td class='p3-delta-good'>+1.25</td><td class='p3-delta-good'>+13 pp</td><td class='p3-delta-good'>+1.5</td><td><strong>sí</strong></td></tr><tr><td>256</td><td>20 000</td><td class='p3-delta-good'>+1.37</td><td class='p3-delta-good'>+13 pp</td><td class='p3-delta-good'>+1.4</td><td><strong>sí</strong></td></tr><tr><td>256</td><td>50 000</td><td class='p3-delta-bad'>-2.68</td><td class='p3-delta-bad'>-53 pp</td><td class='p3-delta-bad'>-2.7</td><td>no</td></tr></tbody></table></div>
+  </div>
+</div>

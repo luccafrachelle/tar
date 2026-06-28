@@ -23,33 +23,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: quarto-dev/quarto-actions/setup@v2
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Generate Lab4 embed HTML
+      - name: Verificar HTML renderizado
         run: |
-          pip install pandas
-          python labs/lab4/scripts/lab4_pregunta3_tables.py
-          python labs/lab4/scripts/lab4_pregunta3_videos.py --html-only --skip-existing
+          test -f index.html || { echo "Falta index.html — renderizá localmente y commiteá el HTML."; exit 1; }
+          test -f labs/lab4/Lab4.html || { echo "Falta labs/lab4/Lab4.html"; exit 1; }
 
-      - name: Render site
-        run: |
-          quarto render index.qmd
-          quarto render labs/lab1/Lab1.qmd
-          quarto render labs/lab2/Lab2.qmd
-          quarto render labs/lab3/Lab3.qmd
-          quarto render labs/lab4/Lab4.qmd
-          quarto render entrega/rfhf/RFHF.qmd
-          quarto render entrega/rfhf/RLHF-Notas.qmd
-
-      - name: Prepare _site
+      - name: Armar sitio estático
         run: |
           mkdir -p _site
           cp index.html _site/
-          cp -r assets labs entrega _site/
+          cp -r assets _site/
+          cp -r labs _site/
+          cp -r entrega _site/
           find _site -name '*.qmd' -delete
           find _site -name '*.ipynb' -delete
           find _site -name '*.py' -delete

@@ -23,20 +23,23 @@ tar/
 
 ## GitHub Pages
 
-1. En el repo: **Settings → Pages → Build and deployment → GitHub Actions**.
-2. Push a `main` (o ejecutar el workflow manualmente).
-3. El workflow `.github/workflows/pages.yml` renderiza todo con Quarto y publica `_site`.
+Deploy **estático**: no se renderiza en CI, solo se publica el HTML ya generado.
 
-Portada local:
+1. En el repo: **Settings → Pages → Build and deployment → GitHub Actions**.
+2. Renderizá localmente y commiteá el HTML:
 
 ```bash
-quarto render index.qmd
-# abre index.html
+bash scripts/render-site.sh
+git add index.html index_files labs entrega
+git commit -m "Actualizar sitio renderizado"
+git push
 ```
 
-## Render
+3. El workflow `.github/workflows/pages.yml` copia `index.html`, `assets/`, `labs/` y `entrega/` a Pages.
 
-Desde la raíz del repo:
+## Render manual
+
+Desde la raíz del repo (o `bash scripts/render-site.sh` para todo junto):
 
 ```bash
 # Portada
@@ -61,7 +64,7 @@ python labs/lab4/scripts/lab4_pregunta3_videos.py
 python labs/lab4/scripts/lab4_pregunta3_tables.py
 ```
 
-Los fragmentos HTML embebidos (`results_tables_embed.html`, `model_videos_embed.html`) están en `.gitignore`; el workflow de GitHub Pages los regenera antes del render.
+Antes de renderizar Lab 4, generá los fragmentos embebidos con los dos primeros comandos de arriba (o usá `render-site.sh`).
 
 ## Estilos
 
