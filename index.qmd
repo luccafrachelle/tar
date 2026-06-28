@@ -1,0 +1,40 @@
+---
+title: "TAR 2026"
+subtitle: "Taller de Aprendizaje por Refuerzo"
+author: "Lucca Frachelle"
+date: "2026-01-01"
+date-format: "YYYY"
+format:
+  html:
+    toc: false
+    number-sections: false
+    title-block-banner: false
+    anchor-sections: false
+    link-external-newwindow: false
+    include-after-body: []
+    theme:
+      light:
+        - cosmo
+        - assets/stylesheets/theme.scss
+        - assets/stylesheets/projects.scss
+        - assets/stylesheets/tar-index.scss
+      dark:
+        - cosmo
+        - assets/stylesheets/theme.scss
+        - assets/stylesheets/projects.scss
+        - assets/stylesheets/tar-index.scss
+---
+
+Material del taller: laboratorios en Quarto y entrega final sobre InstructGPT / RLHF.
+
+## Laboratorios
+
+- [Lab 1 — MDP](labs/lab1/Lab1.html)
+- [Lab 2 — Q-Learning y TD-Learning](labs/lab2/Lab2.html)
+- [Lab 3 — Actor-Critic](labs/lab3/Lab3.html)
+- [Lab 4 — PPO](labs/lab4/Lab4.html)
+
+## Entrega final
+
+- [Notas — InstructGPT y RLHF](entrega/rfhf/RLHF-Notas.html)
+- [Slides — InstructGPT](entrega/rfhf/RFHF.html)

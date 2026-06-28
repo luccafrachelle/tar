@@ -1,0 +1,848 @@
+---
+title: "Lab 4"
+date: 2026-06-26
+format:
+  html:
+    code-fold: true
+    code-summary: "Mostrar código"
+lightbox: auto
+embed-resources: true
+jupyter: autito-ppo
+warning: false
+---
+
+En los laboratorios anteriores construimos los algoritmos *a mano*: iteración de
+valores, Q-learning y, en el Lab 3, un Actor-Critic con REINFORCE y baseline.
+En este laboratorio usamos una implementación industrial de **Proximal Policy
+Optimization (PPO)** [@schulman2017ppo] —la clase `PPO` de
+[`stable-baselines3`](https://stable-baselines3.readthedocs.io)— para resolver
+dos problemas de **control continuo**.
+
+1. **Rotonda (`roundabout-v0`).** Un vehículo debe entrar y circular por una
+   rotonda sin colisionar, usando el entorno ya implementado de
+   [`highway-env`](https://highway-env.farama.org). Sirve para familiarizarse con
+   la API de `PPO` y su entrenamiento (Preguntas 1–3).
+2. **Dirección asistida (entorno propio).** Programamos nuestro propio
+   `gym.Env` para un controlador que ayuda a un humano a mantener el auto
+   centrado en el carril, y lo entrenamos con la misma clase `PPO`
+   (Preguntas 8–10).
+
+Entre ambos problemas, las Preguntas 4–7 repasan propiedades teóricas de PPO:
+la divergencia KL entre políticas gaussianas y la forma del *clipped objective*.
+
+::: {.callout-note}
+## Nota sobre reproducibilidad
+
+La Pregunta 3 se ejecutó por separado con el script
+`scripts/lab4_pregunta3_roundabout.py` (resultados en `results/pregunta3/`).
+Al renderizar el documento, las figuras de esa sección se leen desde disco; las
+Preguntas 7–10 (objetivo recortado y *lane keeping*) **sí se ejecutan** al
+compilar.
+:::
+
+## Notación y formulación
+
+PPO es un método de **policy gradient** que optimiza una política parametrizada
+$\pi_\theta(a\mid s)$ maximizando una estimación del retorno mediante un
+**objetivo sustituto recortado** (*clipped surrogate objective*). Sea
+
+$$
+r_t(\theta)=\frac{\pi_\theta(a_t\mid s_t)}{\pi_{\theta_{\text{old}}}(a_t\mid s_t)}
+$$
+
+el **cociente de probabilidades** (*importance ratio*) entre la política nueva y
+la anterior, y $\hat A_t$ una estimación de la **ventaja**
+$A(s_t,a_t)=Q(s_t,a_t)-V(s_t)$ (en `stable-baselines3`, mediante GAE
+[@schulman2016gae]). El objetivo de PPO es
+
+$$
+L^{\text{CLIP}}(\theta)=\mathbb{E}_t\!\left[
+\min\!\Big(r_t(\theta)\,\hat A_t,\;
+\operatorname{clip}\!\big(r_t(\theta),\,1-\epsilon,\,1+\epsilon\big)\,\hat A_t\Big)
+\right],
+$$
+
+donde $\epsilon$ (por defecto $0.2$) acota cuánto puede alejarse la política
+nueva de la anterior en una actualización. El recorte cumple el rol de una
+**región de confianza** barata: evita pasos de gradiente que cambien demasiado
+la política, una de las causas de inestabilidad en los métodos de gradiente
+on-policy.
+
+# Parte 1 — PPO en `stable-baselines3`
+
+## Pregunta 1 — El objetivo recortado en el código fuente
+
+Localizamos en `stable-baselines3` la línea donde se define el *clipped
+objective* y la reproducimos a continuación.
+
+**Código fuente:** [stable_baselines3/ppo/ppo.py](https://github.com/DLR-RM/stable-baselines3/blob/master/stable_baselines3/ppo/ppo.py)
+
+El objetivo recortado se construye en el método `train()` de la clase `PPO`
+(dentro del bucle sobre el *rollout buffer*). Tras normalizar las ventajas y
+calcular el cociente de probabilidades, el núcleo es:
+
+```python
+# stable_baselines3/ppo/ppo.py — PPO.train()
+
+# ratio between old and new policy, should be one at the first iteration
+ratio = th.exp(log_prob - rollout_data.old_log_prob)
+
+# clipped surrogate loss
+policy_loss_1 = advantages * ratio
+policy_loss_2 = advantages * th.clamp(ratio, 1 - clip_range, 1 + clip_range)
+policy_loss = -th.min(policy_loss_1, policy_loss_2).mean()
+
+# ... value loss, entropy loss ...
+loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
+```
+
+La correspondencia con la fórmula del *clipped objective* es directa:
+
+- `ratio` $= r_t(\theta)=\exp\!\big(\log\pi_\theta(a_t\mid s_t)-\log\pi_{\theta_{\text{old}}}(a_t\mid s_t)\big)$.
+  Se computa en el espacio logarítmico por estabilidad numérica.
+- `policy_loss_1` $= r_t(\theta)\,\hat A_t$ (término sin recortar).
+- `policy_loss_2` $= \operatorname{clip}(r_t,1-\epsilon,1+\epsilon)\,\hat A_t$,
+  con `clip_range` $=\epsilon$ y `th.clamp` implementando el recorte.
+- `policy_loss` $= -\mathbb{E}_t[\min(\cdot,\cdot)]$. El signo negativo convierte
+  la **maximización** de $L^{\text{CLIP}}$ en una **minimización** de la *loss*,
+  que es lo que minimiza Adam por descenso de gradiente.
+
+La *loss* total suma el error del crítico y un término de entropía (última línea
+del bloque anterior).
+
+
+## Pregunta 2 — Estado, acción y recompensa de `roundabout-v0`
+
+**Código fuente:** [highway_env/envs/roundabout_env.py](https://github.com/Farama-Foundation/HighwayEnv/blob/main/highway_env/envs/roundabout_env.py)
+
+Describimos el estado, la acción y la recompensa del entorno `roundabout-v0`,
+según `RoundaboutEnv.default_config()` y los métodos `_rewards()` / `_reward()`.
+
+**Estado (observación) — `Kinematics`.** La observación es una **matriz**
+$V\times F$ con las variables cinemáticas de los vehículos más cercanos; el
+**auto controlado** ocupa la primera fila:
+
+- Vehículos $V$: el auto controlado más los demás observados (por defecto $5$
+  filas).
+- Variables $F$ por vehículo: `["presence", "x", "y", "vx", "vy"]`.
+- Coordenadas **absolutas** (`absolute: True`), normalizadas a los rangos
+  $x,y\in[-100,100]$ m y $v_x,v_y\in[-15,15]$ m/s.
+
+Es decir, el estado describe *dónde están y a qué velocidad van* los autos del
+entorno, no una imagen. Para `MlpPolicy`, esa matriz se aplana en un vector.
+
+**Acción — `DiscreteMetaAction`.** El espacio de acciones es **discreto** con
+cinco *meta-acciones* de alto nivel:
+
+| Índice | Meta-acción | Efecto |
+|---|---|---|
+| 0 | `LANE_LEFT`  | cambiar al carril izquierdo |
+| 1 | `IDLE`       | mantener carril y velocidad |
+| 2 | `LANE_RIGHT` | cambiar al carril derecho |
+| 3 | `FASTER`     | subir a la siguiente velocidad objetivo |
+| 4 | `SLOWER`     | bajar a la anterior velocidad objetivo |
+
+Las velocidades objetivo configuradas son `target_speeds = [0, 8, 16]` m/s; un
+controlador de bajo nivel ejecuta la meta-acción.
+
+**Recompensa.** Cada paso, `_rewards()` devuelve componentes booleanos o
+continuos que se ponderan con los coeficientes de `default_config`, se suman y —
+si `normalize_reward` es verdadero — se reescalan a $[0,1]$ con `utils.lmap`.
+Finalmente se multiplica por `on_road_reward` (el auto debe permanecer en la vía):
+
+$$
+r = \underbrace{\text{lmap}\Big(\,\textstyle\sum_i w_i\,c_i\,,\,[-1,\,0.2]\,,\,[0,1]\Big)}_{\text{normalización}}\;\times\;\mathbb{1}[\text{en la vía}],
+$$
+
+con los componentes definidos en el código:
+
+| Componente | Coeficiente | Cuándo se activa |
+|---|---|---|
+| `collision_reward`   | $-1$    | el auto colisiona (`self.vehicle.crashed`) |
+| `high_speed_reward`  | $+0.2$  | proporcional al índice de velocidad del auto |
+| `lane_change_reward` | $-0.05$ | la acción es un cambio de carril (0 o 2) |
+| `right_lane_reward`  | $0$     | (desactivado) |
+
+**No hay recompensa explícita por completar la ruta** (p. ej. salir por el otro
+lado). El auto controlado arranca en el acceso sur y tiene destino `nxs` vía
+`plan_route_to`, pero eso solo guía el controlador de bajo nivel; la señal de
+refuerzo no premia llegar al destino, solo **sobrevivir, ir rápido y quedarse en
+la vía** (`on_road_reward`).
+
+El episodio **termina** (`terminated`) cuando el auto choca, y se **trunca**
+(`truncated`) al alcanzar `duration = 11` s. En suma, el agente es premiado por
+**circular rápido sin chocar ni salirse**, y levemente penalizado por cambiar de
+carril — no por “terminar del otro lado”.
+
+```python
+# highway_env/envs/roundabout_env.py — RoundaboutEnv.default_config() (extracto)
+
+{
+    "observation": {
+        "type": "Kinematics",
+        "absolute": True,
+        "features_range": {
+            "x": [-100, 100],
+            "y": [-100, 100],
+            "vx": [-15, 15],
+            "vy": [-15, 15],
+        },
+    },
+    "action": {"type": "DiscreteMetaAction", "target_speeds": [0, 8, 16]},
+    "collision_reward": -1,
+    "high_speed_reward": 0.2,
+    "right_lane_reward": 0,
+    "lane_change_reward": -0.05,
+    "duration": 11,
+    "normalize_reward": True,
+}
+
+# _rewards() — componentes de la recompensa por paso
+def _rewards(self, action: int) -> dict[str, float]:
+    return {
+        "collision_reward": self.vehicle.crashed,
+        "high_speed_reward": MDPVehicle.get_speed_index(self.vehicle)
+            / (MDPVehicle.DEFAULT_TARGET_SPEEDS.size - 1),
+        "lane_change_reward": action in [0, 2],
+        "on_road_reward": self.vehicle.on_road,
+    }
+```
+
+## Pregunta 3 — Red mínima y cómputo necesario
+
+Variamos el número de neuronas por capa ($H$) y `total_timesteps` ($T$) para
+identificar la red más pequeña que resuelve el problema y el presupuesto de
+entrenamiento necesario. Ejecutamos el barrido completo con el script
+`scripts/lab4_pregunta3_roundabout.py`, que guarda métricas, modelos y figuras en
+`results/pregunta3/`.
+
+**Configuración de entrenamiento** (igual al enunciado del notebook):
+
+```python
+n_cpu = 2
+env = make_vec_env("roundabout-v0", n_envs=n_cpu, vec_env_cls=DummyVecEnv)
+
+model = PPO(
+    policy="MlpPolicy",
+    policy_kwargs=dict(net_arch=[dict(pi=[H, H], vf=[H, H])]),
+    env=env, verbose=0, seed=0,
+    learning_rate=5e-4, n_steps=64 // n_cpu, n_epochs=10,
+    batch_size=64, gamma=0.8, clip_range=0.2,
+)
+model.learn(total_timesteps=T)
+```
+
+**Metodología del barrido.** Grid $H\in\{16,32,64,128,256\}$ (dos capas ocultas
+en actor y crítico) $\times$ $T\in\{10^3,5\cdot10^3,2\cdot10^4,5\cdot10^4\}$ →
+$20$ entrenamientos. Tras cada uno evaluamos la política en $15$ episodios
+deterministas (semillas fijas) y registramos:
+
+- recompensa media y desvío estándar del episodio;
+- **tasa de choque** (fracción de episodios que terminan por colisión);
+- **longitud media** del episodio (máximo teórico: $11$ pasos = $11$ s);
+- tiempo de entrenamiento en segundos.
+
+Como **baseline** comparamos contra una política aleatoria (misma evaluación):
+recompensa media $8.46$, choque $20\%$, longitud $9.5$ pasos.
+
+Definimos que una configuración **resuelve** el problema si logra choque
+$\le 10\%$, longitud media $\ge 10$ pasos **y recompensa media $> 9.5$**. Ese
+umbral descarta políticas que apenas sobreviven el episodio sin desempeño real
+(p. ej. $H=16$, $T=1000$ logra choque nulo pero recompensa $9.17$).
+
+### Resultados
+
+Elegí la vista **Resultados del barrido** o **Comparación vs. aleatoria** (baseline:
+recompensa $8.46$, choque $20\%$, longitud $9.5$ pasos).
+
+```{=html}
+{{< include results/pregunta3/results_tables_embed.html >}}
+```
+
+De $20$ configuraciones, **5 cumplen** el criterio de éxito. La **mínima** por
+$H$ (menor red que resuelve) es **`[32,32]` con $T=50\,000$**; la más rápida en
+entrenar es **`[256,256]` con $T=5\,000$** (~76 s, recompensa $9.71$). Los datos
+completos están en `results/pregunta3/results.csv`.
+
+![](results/pregunta3/heatmap_mean_reward.png){width=92% fig-alt="Heatmap de recompensa media"}
+
+![](results/pregunta3/heatmap_crash_rate.png){width=92% fig-alt="Heatmap de tasa de choque"}
+
+![](results/pregunta3/curves_vs_timesteps.png){width=100% fig-alt="Curvas de recompensa y choque vs timesteps"}
+
+![](results/pregunta3/train_time.png){width=92% fig-alt="Tiempo de entrenamiento vs timesteps"}
+
+### Comportamiento visual de los modelos
+
+Para cada una de las $20$ configuraciones entrenadas grabamos un episodio
+determinista (semilla fija) con **$40$ s de simulación** (el entorno entrena con
+$11$ s) para ver la entrada, la rotonda y la salida. Elegí un botón para cambiar
+de modelo; se muestra **un solo video** a la vez (selector CSS, compatible con Quarto).
+
+```{=html}
+{{< include results/pregunta3/model_videos_embed.html >}}
+```
+
+También podés abrir el reproductor standalone en
+[`results/pregunta3/model_videos.html`](results/pregunta3/model_videos.html)
+(videos como archivos mp4, más liviano).
+
+### Análisis
+
+**1. Capacidad de la red.** La observación es una matriz $5\times 5$ aplanada
+($25$ entradas) y la acción es discreta ($5$ meta-acciones). Con el umbral de
+recompensa $> 9.5$, ninguna corrida con $H=16$ califica (aunque $T=1000$ evita
+choques). Las arquitecturas $[256,256]$ del enunciado **no son necesarias**; de
+hecho, $H=256$ con $T=50\,000$ produce el **peor** resultado del barrido (choque
+$73\%$, peor que el baseline aleatorio). Redes grandes con poco entrenamiento
+($H\ge 64$, $T=1000$) rinden especialmente mal — necesitan más interacción para
+ajustar sus muchos parámetros.
+
+**2. Presupuesto de entrenamiento ($T$).** La relación entre $T$ y desempeño **no
+es monótona**. Para $H=16$, más entrenamiento **empeora** la tasa de choque (hasta
+$27\%$) sin superar el umbral de recompensa. Redes medianas ($H=32$–$128$) solo
+alcanzan el criterio con $T=50\,000$. Para $H=256$, el rango óptimo está en
+$T\in[5000,20000]$; pasar a $T=50000$ degrada fuertemente el resultado.
+
+**3. Costo computacional.** El tiempo de entrenamiento escala **linealmente** con
+$T$ (≈15 ms/paso), casi independiente de $H$. El cuello de botella es la
+**simulación** del tráfico, no el *forward pass* de la red. La opción más barata
+que resuelve es **`[256,256]` + $T=5000$** (~76 s); la red más chica que califica
+requiere **`[32,32]` + $T=50000$** (~12 min).
+
+**4. Métrica más informativa que la recompensa.** La recompensa normalizada del
+entorno puede ser alta incluso con choques ocasionales (p. ej. $H=16$, $T=20000$
+alcanza recompensa $10.07$ pero choque $13\%$). Por eso fijamos un **piso de
+recompensa** además de choque y longitud.
+
+**Síntesis.** Ninguna red pequeña con poco entrenamiento supera los tres criterios
+simultáneamente. La configuración más económica que resuelve es **`[256,256]`**
+con **`5000` timesteps**; la red más chica que califica es **`[32,32]`** con
+**`50000` timesteps**. Aumentar la red o el presupuesto no garantiza mejora — e
+incluso puede empeorar —, lo que confirma que el estado es de baja dimensión y
+que el diseño del experimento (semilla única, pocos entornos paralelos,
+$\gamma=0.8$) hace crítica la elección de $T$.
+Para reproducir el barrido:
+
+```bash
+python scripts/lab4_pregunta3_roundabout.py          # grid completo (~95 min)
+python scripts/lab4_pregunta3_roundabout.py --resume  # continuar si se interrumpe
+```
+
+# Parte 2 — Propiedades teóricas de PPO
+
+## Pregunta 4 — Divergencia KL entre políticas gaussianas
+
+Demostramos que si $\pi_\theta(A\mid S)$ y $\pi_\omega(A\mid S)$ son políticas
+gaussianas con la misma desviación estándar $\sigma$ y medias $\mu_\theta(s)$ y
+$\mu_\omega(s)$, entonces
+$D_{KL}(\pi_\theta\,\|\,\pi_\omega)\propto(\mu_\theta-\mu_\omega)^2$.
+
+Para un estado fijo $S$, ambas políticas son densidades normales sobre la acción
+$a\in\mathbb{R}$ con la misma varianza $\sigma^2$:
+
+$$
+\pi_\theta(a\mid S)=\frac{1}{\sqrt{2\pi}\,\sigma}\exp\!\left(-\frac{(a-\mu_\theta)^2}{2\sigma^2}\right),
+\qquad
+\pi_\omega(a\mid S)=\frac{1}{\sqrt{2\pi}\,\sigma}\exp\!\left(-\frac{(a-\mu_\omega)^2}{2\sigma^2}\right),
+$$
+
+donde escribimos $\mu_\theta=\mu_\theta(S)$ y $\mu_\omega=\mu_\omega(S)$. Por
+definición,
+
+$$
+D_{KL}(\pi_\theta\,\|\,\pi_\omega)
+=\mathbb{E}_{a\sim\pi_\theta}\!\left[\log\frac{\pi_\theta(a\mid S)}{\pi_\omega(a\mid S)}\right].
+$$
+
+Como los factores de normalización $1/(\sqrt{2\pi}\,\sigma)$ son **idénticos**,
+se cancelan dentro del logaritmo, y queda solo la diferencia de exponentes:
+
+$$
+\log\frac{\pi_\theta(a\mid S)}{\pi_\omega(a\mid S)}
+=-\frac{(a-\mu_\theta)^2}{2\sigma^2}+\frac{(a-\mu_\omega)^2}{2\sigma^2}
+=\frac{(a-\mu_\omega)^2-(a-\mu_\theta)^2}{2\sigma^2}.
+$$
+
+Desarrollamos la diferencia de cuadrados:
+
+$$
+(a-\mu_\omega)^2-(a-\mu_\theta)^2
+=\big[(a-\mu_\omega)-(a-\mu_\theta)\big]\big[(a-\mu_\omega)+(a-\mu_\theta)\big]
+=(\mu_\theta-\mu_\omega)\,(2a-\mu_\theta-\mu_\omega).
+$$
+
+Por lo tanto,
+
+$$
+\log\frac{\pi_\theta}{\pi_\omega}
+=\frac{(\mu_\theta-\mu_\omega)\,(2a-\mu_\theta-\mu_\omega)}{2\sigma^2}.
+$$
+
+Tomamos esperanza bajo $a\sim\pi_\theta$, donde $\mathbb{E}_{\pi_\theta}[a]=\mu_\theta$:
+
+$$
+\mathbb{E}_{\pi_\theta}\!\left[2a-\mu_\theta-\mu_\omega\right]
+=2\mu_\theta-\mu_\theta-\mu_\omega=\mu_\theta-\mu_\omega.
+$$
+
+Sustituyendo,
+
+$$
+\boxed{\;D_{KL}(\pi_\theta\,\|\,\pi_\omega)
+=\frac{(\mu_\theta-\mu_\omega)\,(\mu_\theta-\mu_\omega)}{2\sigma^2}
+=\frac{(\mu_\theta-\mu_\omega)^2}{2\sigma^2}\;}
+$$
+
+La KL depende **solo del cuadrado de la diferencia de medias**,
+$D_{KL}\propto(\mu_\theta-\mu_\omega)^2$, con constante de proporcionalidad
+$1/(2\sigma^2)$. La identidad del enunciado
+$D_{KL}=(\mu_\theta-\mu_\omega)^2$ corresponde al caso particular
+$\sigma^2=\tfrac12$ (o, equivalentemente, a omitir la constante). $\blacksquare$
+
+Con varianza fija, controlar la distancia entre medias equivale a controlar la
+KL; es la motivación de las regiones de confianza en TRPO/PPO.
+
+Para las siguientes preguntas, recordamos el *clipped objective* como función del
+cociente $r$ y la ventaja $A$:
+
+$$
+L(r,A)=\min\!\big(r\,A,\;\operatorname{clip}_\epsilon(r)\,A\big),
+\qquad
+\operatorname{clip}_\epsilon(r)=
+\begin{cases}
+1-\epsilon & r<1-\epsilon,\\
+r & 1-\epsilon\le r\le 1+\epsilon,\\
+1+\epsilon & r>1+\epsilon.
+\end{cases}
+$$
+
+## Pregunta 5 — Forma de $L(r,A)$ para $A>0$
+
+Demostramos que $L(r,A)=A\,\min(r,\,1+\epsilon)$ cuando $A>0$. Como $A>0$, el
+factor $A$ es positivo y **preserva** el orden, de modo que se
+puede sacar del mínimo:
+
+$$
+L(r,A)=\min(r\,A,\;\operatorname{clip}_\epsilon(r)\,A)
+=A\,\min\!\big(r,\;\operatorname{clip}_\epsilon(r)\big).
+$$
+
+Basta entonces probar que $\min(r,\operatorname{clip}_\epsilon(r))=\min(r,1+\epsilon)$,
+analizando los tres tramos del recorte:
+
+- **$r<1-\epsilon$:** $\operatorname{clip}_\epsilon(r)=1-\epsilon$. Como
+  $r<1-\epsilon<1+\epsilon$, se tiene $\min(r,1-\epsilon)=r$ y también
+  $\min(r,1+\epsilon)=r$. Coinciden.
+- **$1-\epsilon\le r\le 1+\epsilon$:** $\operatorname{clip}_\epsilon(r)=r$, luego
+  $\min(r,r)=r$; y como $r\le 1+\epsilon$, $\min(r,1+\epsilon)=r$. Coinciden.
+- **$r>1+\epsilon$:** $\operatorname{clip}_\epsilon(r)=1+\epsilon$, luego
+  $\min(r,1+\epsilon)=1+\epsilon$; e igualmente $\min(r,1+\epsilon)=1+\epsilon$.
+  Coinciden.
+
+En los tres casos $\min(r,\operatorname{clip}_\epsilon(r))=\min(r,1+\epsilon)$, de
+donde
+
+$$
+\boxed{\;L(r,A)=A\,\min(r,\,1+\epsilon)\quad\text{para }A>0.\;}
+$$
+
+**Lectura.** Con ventaja positiva queremos **aumentar** $r$ (subir la
+probabilidad de la acción buena), pero la recompensa del objetivo se **satura**
+en $r=1+\epsilon$: pasado ese punto, aumentar más $r$ no aporta, lo que elimina
+el incentivo a dar pasos enormes. $\blacksquare$
+
+## Pregunta 6 — Forma de $L(r,A)$ para $A<0$
+
+Demostramos que $L(r,A)=|A|\,\min(-r,\,-(1-\epsilon))$ cuando $A<0$. Como
+$A<0$, multiplicar por un número negativo **invierte** el orden, así que
+el mínimo de los productos se vuelve el máximo de los factores:
+
+$$
+L(r,A)=\min(r\,A,\;\operatorname{clip}_\epsilon(r)\,A)
+=A\,\max\!\big(r,\;\operatorname{clip}_\epsilon(r)\big).
+$$
+
+Veamos que $\max(r,\operatorname{clip}_\epsilon(r))=\max(r,1-\epsilon)$:
+
+- **$r<1-\epsilon$:** $\operatorname{clip}_\epsilon(r)=1-\epsilon$, y
+  $\max(r,1-\epsilon)=1-\epsilon$ (pues $r<1-\epsilon$). Igual a $\max(r,1-\epsilon)$.
+- **$1-\epsilon\le r\le 1+\epsilon$:** $\operatorname{clip}_\epsilon(r)=r$, y
+  $\max(r,r)=r$; como $r\ge 1-\epsilon$, $\max(r,1-\epsilon)=r$. Coinciden.
+- **$r>1+\epsilon$:** $\operatorname{clip}_\epsilon(r)=1+\epsilon$, y
+  $\max(r,1+\epsilon)=r$; como $r>1-\epsilon$, $\max(r,1-\epsilon)=r$. Coinciden.
+
+Luego $L(r,A)=A\,\max(r,1-\epsilon)$. Para llegar a la forma del enunciado,
+escribimos $A=-|A|$ y usamos $\max(x,y)=-\min(-x,-y)$:
+
+$$
+L(r,A)=-|A|\,\max(r,1-\epsilon)
+=-|A|\,\big(-\min(-r,-(1-\epsilon))\big)
+=|A|\,\min\!\big(-r,\,-(1-\epsilon)\big).
+$$
+
+$$
+\boxed{\;L(r,A)=|A|\,\min\!\big(-r,\,-(1-\epsilon)\big)\quad\text{para }A<0.\;}
+$$
+
+**Lectura.** Con ventaja negativa queremos **disminuir** $r$ (bajar la
+probabilidad de la acción mala). El objetivo se satura en $r=1-\epsilon$: por
+debajo de ese umbral, seguir reduciendo $r$ no mejora el objetivo, evitando otra
+vez actualizaciones excesivas. $\blacksquare$
+
+## Pregunta 7 — Gráfico de $L(r,A)$ y efecto de $\epsilon$
+
+Graficamos $L(r,A)$ para $A>0$ y $A<0$ y comentamos el efecto del parámetro
+$\epsilon$.
+
+```{python}
+#| label: setup-plot
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set_theme(style="whitegrid", context="notebook", palette="deep")
+mpl.rcParams.update({
+    "figure.dpi": 400,
+    "savefig.dpi": 400,
+    "figure.constrained_layout.use": True,
+    "axes.titlesize": 12,
+    "axes.labelsize": 11,
+    "legend.fontsize": 9,
+    "xtick.labelsize": 9,
+    "ytick.labelsize": 9,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "axes.grid": True,
+    "grid.alpha": 0.3,
+    "lines.linewidth": 1.8,
+    "mathtext.fontset": "cm",
+})
+PALETTE = sns.color_palette("deep")
+FIG_DPI = 400
+
+
+def clip_eps(r, eps):
+    return np.clip(r, 1 - eps, 1 + eps)
+
+
+def L(r, A, eps):
+    return np.minimum(r * A, clip_eps(r, eps) * A)
+
+
+def _style_2d_ax(ax, xlabel, ylabel, title):
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title, fontsize=11, pad=10)
+    ax.grid(True, which="major", color="#cccccc", linewidth=0.9, alpha=1.0)
+    ax.set_axisbelow(True)
+```
+
+```{python}
+#| label: fig-clip-objective
+#| fig-cap: "Objetivo recortado $L(r,A)$ como función del cociente $r$, para ventaja positiva ($A=1$) y negativa ($A=-1$), con $\\epsilon=0.2$. Las zonas sombreadas marcan donde el recorte aplana el objetivo."
+
+r = np.linspace(0.0, 2.0, 600)
+eps = 0.2
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), dpi=FIG_DPI)
+
+# --- A > 0 ---
+ax = axes[0]
+ax.plot(r, L(r, 1.0, eps), color=PALETTE[0], label=r"$L(r,A)=A\,\min(r,1+\epsilon)$")
+ax.plot(r, r * 1.0, color="grey", ls="--", lw=1.3, label=r"$rA$ (sin recortar)")
+ax.axvline(1 - eps, color=PALETTE[3], ls=":", lw=1.2)
+ax.axvline(1 + eps, color=PALETTE[3], ls=":", lw=1.2)
+ax.axvspan(1 + eps, 2.0, color=PALETTE[1], alpha=0.12)
+_style_2d_ax(
+    ax,
+    xlabel=r"$r=\pi_\theta/\pi_{\theta_{\text{old}}}$",
+    ylabel=r"$L(r,A)$",
+    title=r"Ventaja Positiva $A>0$",
+)
+ax.annotate(r"saturación en $r=1+\epsilon$", xy=(1 + eps, 1 + eps),
+            xytext=(1.25, 0.7), fontsize=8,
+            arrowprops=dict(arrowstyle="->", color="grey"))
+ax.legend(loc="upper left", framealpha=0.95)
+
+# --- A < 0 ---
+ax = axes[1]
+ax.plot(r, L(r, -1.0, eps), color=PALETTE[2], label=r"$L(r,A)=|A|\,\min(-r,-(1-\epsilon))$")
+ax.plot(r, r * (-1.0), color="grey", ls="--", lw=1.3, label=r"$rA$ (sin recortar)")
+ax.axvline(1 - eps, color=PALETTE[3], ls=":", lw=1.2)
+ax.axvline(1 + eps, color=PALETTE[3], ls=":", lw=1.2)
+ax.axvspan(0.0, 1 - eps, color=PALETTE[1], alpha=0.12)
+_style_2d_ax(
+    ax,
+    xlabel=r"$r=\pi_\theta/\pi_{\theta_{\text{old}}}$",
+    ylabel=r"$L(r,A)$",
+    title=r"Ventaja Negativa $A<0$",
+)
+ax.annotate(r"saturación en $r=1-\epsilon$", xy=(1 - eps, -(1 - eps)),
+            xytext=(0.05, -1.35), fontsize=8,
+            arrowprops=dict(arrowstyle="->", color="grey"))
+ax.legend(loc="upper right", framealpha=0.95)
+
+plt.show()
+```
+
+La línea punteada gris es el objetivo **sin recortar** $rA$; la curva de color es
+$L(r,A)$. Las líneas de puntos verticales marcan $r=1-\epsilon$ y $r=1+\epsilon$.
+
+- **$A>0$ (panel izquierdo).** $L$ crece con $r$ hasta $r=1+\epsilon$ y allí se
+  **aplana**: una vez que la nueva política ya hizo la acción buena
+  suficientemente más probable, el objetivo deja de premiar más. El gradiente se
+  anula en la zona sombreada, así que no hay incentivo a dar pasos grandes.
+- **$A<0$ (panel derecho).** $L$ decrece (su valor sube hacia $0$ a medida que
+  $r\to 0$) hasta $r=1-\epsilon$ y allí se **aplana**: una vez que la acción mala
+  se hizo bastante menos probable, el objetivo deja de empujar.
+
+**Efecto de $\epsilon$.** El parámetro define el ancho de la **región de
+confianza** $[1-\epsilon,\,1+\epsilon]$ donde el objetivo coincide con $rA$:
+
+- $\epsilon$ **chico** ⇒ banda angosta ⇒ la política se actualiza poco por paso
+  (más estable, más lento).
+- $\epsilon$ **grande** ⇒ banda ancha ⇒ pasos más agresivos (más rápido, pero con
+  riesgo de inestabilidad).
+
+```{python}
+#| label: fig-clip-eps
+#| fig-cap: "Efecto de $\\epsilon$ sobre $L(r,A)$ con $A>0$: a mayor $\\epsilon$, más tarde satura el objetivo (banda de confianza más ancha)."
+
+fig, ax = plt.subplots(figsize=(7.5, 4.2), dpi=FIG_DPI)
+for eps, col in zip([0.1, 0.2, 0.4], [PALETTE[0], PALETTE[2], PALETTE[4]]):
+    ax.plot(r, L(r, 1.0, eps), color=col, label=rf"$\epsilon={eps}$")
+ax.plot(r, r, color="grey", ls="--", lw=1.2, label=r"$rA$ (sin recortar)")
+_style_2d_ax(
+    ax,
+    xlabel=r"$r=\pi_\theta/\pi_{\theta_{\text{old}}}$",
+    ylabel=r"$L(r,A)$",
+    title=r"Saturación del Objetivo según $\epsilon$  ($A>0$)",
+)
+ax.legend(loc="upper left", framealpha=0.95)
+plt.show()
+```
+
+# Parte 3 — Entorno propio: dirección asistida
+
+En esta parte programamos nuestro propio entorno `gym.Env` para un sistema de
+**asistencia al centrado en carril**. La política de RL genera una acción
+`policy_steering` que se **suma** a la del humano `human_steering` para producir
+la dirección resultante `assisted_steering`. El humano se modela como una máquina
+de dos estados: si está *alerta* conduce con un controlador PI; si se *duerme*,
+solo produce una deriva aleatoria. El controlador aprendido debe compensar esa
+deriva con el menor esfuerzo posible.
+
+## Pregunta 8 — Dinámica del sistema y recompensa
+
+Completamos la actualización de `self.x` y `self.v` según el modelo dinámico
+$x(t+1)=x(t)+v(t)\,dt$, $v(t+1)=v(t)+acc(t)\,dt$, y la recompensa
+$\text{reward}=-e^2-0.05\,u^2$, donde $e$ es el error respecto del centro del
+carril y $u$ es `policy_steering`. Las tres líneas implementan un integrador de
+Euler para la dinámica lateral y la recompensa que penaliza descentrado y
+esfuerzo de la asistencia:
+
+- **Velocidad:** `self.v += acc * self.dt`, que es $v(t+1)=v(t)+acc(t)\,dt$.
+- **Posición:** `self.x += self.v * self.dt`, esto es $x(t+1)=x(t)+v(t+1)\,dt$.
+  Como en la plantilla `self.v` se actualiza **antes** que `self.x`, se usa la
+  velocidad ya actualizada: es el esquema **semi-implícito de Euler**
+  (*symplectic Euler*), más estable que el explícito y equivalente al modelo
+  pedido salvo el desfase de un paso.
+- **Recompensa:** con $e=\text{target}-x$ y $u=$ `policy_steering`,
+  $\text{reward}=-e^2-0.05\,u^2$. El primer término premia mantenerse en el
+  centro; el segundo penaliza el **consumo** del sistema automático, de modo que
+  la asistencia solo intervenga lo necesario.
+
+```{python}
+#| label: lane-keeping-env
+import gymnasium as gym
+from gymnasium import spaces
+import numpy as np
+
+
+class LaneKeepingEnv(gym.Env):
+    """
+    Control lateral de un vehículo con:
+    - controlador PI en modo ALERTA
+    - deriva aleatoria en modo DORMIDO
+    La política de RL aporta `policy_steering`, que se suma a la acción humana.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+        # Estado: [posición lateral x, velocidad lateral v, alerta]
+        self.observation_space = spaces.Box(
+            low=np.array([-10.0, -10.0, 0]),
+            high=np.array([10.0, 10.0, 1]),
+            dtype=np.float32,
+        )
+        # Acción: corrección de dirección de la política, en [-1, 1]
+        self.action_space = spaces.Box(
+            low=-1.0, high=1.0, shape=(1,), dtype=np.float32
+        )
+
+        # Dinámica
+        self.dt = 0.1
+        self.x = 0.0
+        self.v = 0.0
+        self.alerta = 1  # 1 = ALERTA, 0 = DORMIDO
+
+        # Controlador PI del humano
+        self.Kp = 0.8
+        self.Ki = 0.1
+        self.integral = 0.0
+
+        self.target = 0.0  # centro del carril
+
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        self.x = np.random.uniform(-2, 2)
+        self.v = 0.0
+        self.alerta = np.random.choice([0, 1], p=[0.3, 0.7])
+        self.integral = 0.0
+        return self._get_obs(), {}
+
+    def control_humano(self):
+        error = self.target - self.x
+        self.integral += error * self.dt
+        if self.alerta == 1:
+            # Conductor alerta: controlador proporcional-integral
+            human_steering = self.Kp * error + self.Ki * self.integral
+            human_steering = np.clip(human_steering, -2, 2)
+        else:
+            # Conductor dormido: deriva aleatoria
+            human_steering = np.random.normal(0, 0.6)
+        return human_steering
+
+    def _get_obs(self):
+        return np.array([self.x, self.v, self.alerta], dtype=np.float32)
+
+    def step(self, action):
+        policy_steering = float(np.clip(action[0], -1, 1))
+        human_steering = self.control_humano()
+        assisted_steering = policy_steering + human_steering
+        amortiguamiento = 0.2 * self.v
+
+        # --- DINÁMICA DEL SISTEMA ---
+        acc = assisted_steering - amortiguamiento
+        self.v += acc * self.dt           # v(t+1) = v(t) + acc(t) dt
+        self.x += self.v * self.dt        # x(t+1) = x(t) + v(t+1) dt
+
+        # recompensa: centrado en el carril (e) y consumo de la asistencia (u)
+        e = self.target - self.x
+        u = policy_steering
+        reward = -e**2 - 0.05 * u**2
+
+        # penalizar salirse del carril
+        terminated = abs(self.x) > 10
+        truncated = False
+
+        return self._get_obs(), reward, terminated, truncated, {}
+```
+
+## Pregunta 9 — Entrenamiento de la política asistida
+
+Entrenamos la política de conducción asistida con `PPO` y la configuración del
+enunciado: `MlpPolicy`, `n_steps=256`, `batch_size=64`, $\gamma=0.99$ y
+`learning_rate=3e-4`. Como la acción es **continua** ($u\in[-1,1]$),
+`stable-baselines3` usa una política **gaussiana** (media de la red, $\sigma$
+aprendida), el mismo caso analizado en la Pregunta 4.
+
+```{python}
+#| label: train-ppo-lane
+from stable_baselines3 import PPO
+from stable_baselines3.common.env_util import make_vec_env
+
+env = make_vec_env(lambda: LaneKeepingEnv(), n_envs=1)
+
+model = PPO(
+    "MlpPolicy",
+    env,
+    verbose=0,
+    n_steps=256,
+    batch_size=64,
+    gamma=0.99,
+    learning_rate=3e-4,
+    seed=0,
+)
+
+model.learn(total_timesteps=50_000)
+print("Entrenamiento finalizado:", model.num_timesteps, "timesteps.")
+```
+
+## Pregunta 10 — Visualización de los resultados
+
+Simulamos 300 pasos con la política entrenada (modo determinista) y graficamos
+la trayectoria de la posición lateral $x$.
+
+```{python}
+#| label: rollout-lane
+obs = env.reset()
+
+positions, rewards, alertas = [], [], []
+for _ in range(300):
+    action, _ = model.predict(obs, deterministic=True)
+    obs, reward, done, info = env.step(action)
+    positions.append(float(obs[0][0]))
+    rewards.append(float(reward[0]))
+    alertas.append(float(obs[0][2]))
+    if done:
+        break
+
+positions = np.array(positions)
+alertas = np.array(alertas)
+mae = np.mean(np.abs(positions[-100:]))
+print(f"Pasos simulados: {len(positions)} | "
+      f"error absoluto medio (últimos 100 pasos): {mae:.3f}")
+```
+
+```{python}
+#| label: fig-lane-keeping
+#| fig-cap: "Posición lateral $x$ bajo la política asistida entrenada. La línea punteada marca el centro del carril ($x=0$); las bandas sombreadas indican tramos en que el conductor estuvo *dormido*."
+
+fig, ax = plt.subplots(figsize=(9, 4.2), dpi=FIG_DPI)
+t = np.arange(len(positions))
+ax.plot(t, positions, color=PALETTE[0], lw=1.8, label=r"posición lateral $x$")
+ax.axhline(0, color="grey", ls="--", lw=1.2, label="centro del carril")
+
+dormido = alertas < 0.5
+ymin, ymax = positions.min() - 0.3, positions.max() + 0.3
+ax.fill_between(t, ymin, ymax, where=dormido,
+                color=PALETTE[3], alpha=0.12, step="mid",
+                label="conductor dormido")
+
+_style_2d_ax(
+    ax,
+    xlabel="Time Step",
+    ylabel=r"$x$",
+    title="Lane Keeping Asistido (Posición Lateral)",
+)
+ax.set_ylim(ymin, ymax)
+ax.legend(loc="upper right", framealpha=0.95)
+plt.show()
+```
+
+La política aprende a **cancelar la deriva** del conductor: la posición lateral
+permanece cerca del centro del carril ($x=0$), incluso cuando el humano está
+dormido (bandas sombreadas) y solo aporta ruido. El término $-0.05\,u^2$ de la
+recompensa hace que la asistencia sea **parsimoniosa**: corrige lo necesario sin
+saturar la dirección, dejando que el controlador PI del humano actúe cuando está
+alerta.
+
+# Conclusión {.unnumbered}
+
+Este laboratorio cierra el recorrido del curso pasando de implementar algoritmos
+a mano a usar una librería de producción. PPO se apoya en dos ideas centrales: el
+**objetivo recortado**, que actúa como región de confianza barata (Preguntas 1,
+5–7), y su vínculo con la **divergencia KL** entre políticas gaussianas —que, con
+varianza fija, se reduce al cuadrado de la diferencia de medias (Pregunta 4)—. El
+barrido experimental de la Pregunta 3 mostró que, con recompensa $> 9.5$, la opción
+más económica que resuelve la rotonda es `[256,256]` con $T=5000$ (~76 s), mientras
+que arquitecturas mal calibradas pueden empeorar el desempeño (Preguntas 2–3). Por
+último, construimos un `gym.Env` propio y comprobamos que la misma
+clase `PPO` resuelve un sistema de asistencia al conductor que cancela la deriva
+minimizando el esfuerzo (Preguntas 8–10).
+
+# Referencias {.unnumbered}

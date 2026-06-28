@@ -1,2 +1,14 @@
-/.DS_Store
 /.venv
+.DS_Store
+**/__pycache__/
+*.pyc
+
+# Render Quarto (regenerar con quarto render)
+**/*.html
+**/*_files/
+**/.quarto/
+
+# Artefactos pesados opcionales (descomentar si no querés versionar modelos)
+# labs/lab4/results/pregunta3/models/
+
+/.quarto/

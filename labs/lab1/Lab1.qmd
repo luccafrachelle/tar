@@ -1,0 +1,592 @@
+---
+title: "Lab 1 - MDP"
+date: today
+number-sections: true
+title-block-banner: true
+code-fold: false
+filters:
+  - imagify
+imagify:
+  header-includes: |
+    \usepackage{amsmath}
+    \usepackage{tikz}
+    \usetikzlibrary{automata, positioning, arrows.meta}
+format:
+  html:
+    include-after-body:
+      - file: assets/scripts/categories-alphabetical.html
+      - file: assets/scripts/modal-clipboardjs.html
+lightbox: auto
+embed-resources: true
+---
+
+## Parte 1
+
+**Acción $a=1$ (reemplazar):** 
+
+
+$$P(s_{k+1}=S \mid a_k=1)=1$$
+
+Significa que, si en el instante $k$ se reemplaza la máquina, el estado siguiente es **siempre** $S$ (máquina nueva), sin depender de $s_k$.
+
+**Acción $a=0$ (no reemplazar):**
+$$
+P(s_{k+1}=s \mid s_k=s', a_k=0) = (1-\theta)\,\delta_{s',s} + \theta\,\delta_{\max(1,s'-1),\,s}
+$$
+
+Significa que la máquina se degrada de manera estocástica:
+
+- con probabilidad $(1-\theta)$ la máquina **permanece** en $s'$;
+
+- con probabilidad $\theta$ pasa al estado **una unidad peor**, es decir $\max(1,s'-1)$ (nunca por debajo de 1). Si $s'=1$, entonces $\max(1,0)=1$: en el estado “roto” no empeora más.
+
+El parámetro $\theta \in [0,1]$ controla la **velocidad media de degradación** cuando no hay reemplazo.
+
+### Tabla $P(s' \mid s,a)$ para $S=4$
+
+Estados $\{1,2,3,4\}$ con $4$ = nueva y $1$ = peor. Solo se listan ternas con probabilidad estrictamente positiva; el resto es $0$.
+
+| $s$ | $a$ | $s'$ | $P(s' \mid s,a)$ |
+|:---:|:---:|:---:|:---|
+| 1 | 0 | 1 | $1$ |
+| 2 | 0 | 2 | $1-\theta$ |
+| 2 | 0 | 1 | $\theta$ |
+| 3 | 0 | 3 | $1-\theta$ |
+| 3 | 0 | 2 | $\theta$ |
+| 4 | 0 | 4 | $1-\theta$ |
+| 4 | 0 | 3 | $\theta$ |
+| 1 | 1 | 4 | $1$ |
+| 2 | 1 | 4 | $1$ |
+| 3 | 1 | 4 | $1$ |
+| 4 | 1 | 4 | $1$ |
+
+### Diagrama de estados ($S=4$)
+
+Secuencia de calidad $1 \to 2 \to 3 \to 4$ (peor $\to$ mejor).
+
+- **$a=0$:** desde $s>1$, lazo $(1-\theta)$ en $s$ y flecha a $s-1$ con peso $\theta$; desde $s=1$, solo permanencia en $1$.
+- **$a=1$:** desde cualquier $s$, transición a $4$ con probabilidad $1$.
+
+::: {.content-visible when-format="html"}
+<div style="height: 0.5rem;"></div>
+:::: {.columns style="column-gap: 4rem; align-items: start;"}
+::: {.column width="48%" style="padding-right: 0.5rem;"}
+![Acción $a=0$.](img/mdp-accion-a0.tikz){#fig-mdp-a0 fig-align="center" width="100%"}
+:::
+::: {.column width="48%" style="padding-left: 0.5rem;"}
+![Acción $a=1$.](img/mdp-accion-a1.tikz){#fig-mdp-a1 fig-align="center" width="100%"}
+:::
+::::
+:::
+
+::: {.content-visible when-format="pdf"}
+```{=latex}
+\begin{center}
+\begin{minipage}{0.48\textwidth}
+\centering
+\textbf{Acción $a=0$ (dejar sin cambios)}
+
+\vspace{0.5em}
+\begin{tikzpicture}[node distance=3cm, >=Stealth, auto, state/.style={circle, draw, minimum size=1cm}]
+    \node[state] (s1) {1};
+    \node[state, right of=s1] (s2) {2};
+    \node[state, right of=s2] (s3) {3};
+    \node[state, right of=s3] (s4) {4};
+
+    \path[->]
+        (s4) edge [loop above] node {$1-\theta$} (s4)
+        (s4) edge node[above] {$\theta$} (s3)
+        (s3) edge [loop above] node {$1-\theta$} (s3)
+        (s3) edge node[above] {$\theta$} (s2)
+        (s2) edge [loop above] node {$1-\theta$} (s2)
+        (s2) edge node[above] {$\theta$} (s1)
+        (s1) edge [loop above] node {1} (s1);
+\end{tikzpicture}
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\textwidth}
+\centering
+\textbf{Acción $a=1$ (reemplazar)}
+
+\vspace{0.5em}
+\begin{tikzpicture}[node distance=3cm, >=Stealth, auto, state/.style={circle, draw, minimum size=1cm}]
+    \node[state] (s1) {1};
+    \node[state, right of=s1] (s2) {2};
+    \node[state, right of=s2] (s3) {3};
+    \node[state, right of=s3] (s4) {4};
+
+    \path[->]
+        (s1) edge [bend right=35] node[below] {1} (s4)
+        (s2) edge [bend right=25] node[below] {1} (s4)
+        (s3) edge node[below] {1} (s4)
+        (s4) edge [loop above] node {1} (s4);
+\end{tikzpicture}
+\end{minipage}
+\end{center}
+```
+:::
+
+## Parte 2
+
+Sea $P(a) \in \mathbb{R}^{S \times S}$ con entradas $[P(a)]_{s,s'} = P(s' \mid s,a)$ (**fila** = estado actual $s$, **columna** = siguiente $s'$).
+
+**Acción $a=1$:** para todo $s$, el siguiente estado es $S$ con probabilidad $1$:
+$$
+P(1) = \mathbf{1}_S\, e_S^\top,
+$$
+donde $\mathbf{1}_S$ es el vector columna de unos y $e_S^\top$ tiene un $1$ en la posición $S$ y ceros en el resto. Equivalentemente, **todas las filas** de $P(1)$ son $[0,\ldots,0,1]$.
+
+**Acción $a=0$:** para cada fila $s$,
+$$
+[P(0)]_{s,s'} = (1-\theta)\,\delta_{s,s'} + \theta\,\delta_{\max(1,s-1),\,s'}.
+$$
+
+En particular: si $s=1$ entonces $[P(0)]_{1,1}=1$; si $s \ge 2$ entonces $[P(0)]_{s,s}=1-\theta$ y $[P(0)]_{s,s-1}=\theta$.
+
+Para $S=4$ (columnas en orden $s'=1,2,3,4$):
+$$
+P(0) = \begin{pmatrix}
+1 & 0 & 0 & 0 \\
+\theta & 1-\theta & 0 & 0 \\
+0 & \theta & 1-\theta & 0 \\
+0 & 0 & \theta & 1-\theta
+\end{pmatrix},
+\qquad
+P(1) = \begin{pmatrix}
+0 & 0 & 0 & 1 \\
+0 & 0 & 0 & 1 \\
+0 & 0 & 0 & 1 \\
+0 & 0 & 0 & 1
+\end{pmatrix}.
+$$
+
+## Parte 3
+
+Se pide simular el MDP bajo una política estacionaria que, en cada instante $k$ y estado $s_k$, elige **reemplazar** con probabilidad $\pi(s_k)$ y **no reemplazar** con probabilidad $1-\pi(s_k)$, con $\pi:\{1,\ldots,S\}\to[0,1]$.
+
+Convención de **acciones en la simulación** (igual que en las partes 1–2): $a_k=1$ es reemplazar y $a_k=0$ es no reemplazar. En código: costo si $a_k=1$ es $C$, y si $a_k=0$ es $(S-s)/(S-1)$ (para $S>1$; si $S=1$ el denominador es $0$ y tomamos costo de no reemplazar $0$).
+
+En cada paso: si $a_k=1$, entonces $s_{k+1}=S$; si $a_k=0$, entonces $s_{k+1}=s_k$ con probabilidad $1-\theta$ y $s_{k+1}=\max(1,s_k-1)$ con probabilidad $\theta$.
+
+La función `simulate_trajectory` recibe la política como `replace_prob(s)` (probabilidad de reemplazar), la longitud de horizonte $T$, y devuelve la lista de estados (longitud $T+1$), la lista de acciones (longitud $T$) y el costo acumulado $J=\sum_{k=0}^{T-1} c(s_k,a_k)$.
+
+Políticas del enunciado (probabilidad de **reemplazar**, es decir $a=1$):
+
+- **Aleatoria:** $\pi(s) = (S-s)/(S-1)$.
+- **Determinística:** $\pi(s)=1$ si $s=1$, y $0$ si $s>1$.
+
+```{python}
+#| label: parte-3-imports
+#| echo: true
+
+import random
+from dataclasses import dataclass
+import numpy as np
+from typing import Callable, List, Optional, Tuple
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set_theme(style="whitegrid", context="notebook")
+```
+
+```{python}
+#| label: parte-3-dinamica
+#| echo: true
+
+@dataclass(frozen=True)
+class MachineMDP:
+    S: int
+    theta: float
+    C: float
+
+    def step(self, s: int, a: int, rng: random.Random) -> int:
+        if a == 1:
+            return self.S
+        return max(1, s - 1) if rng.random() < self.theta else s
+
+    def cost(self, s: int, a: int) -> float:
+        if a == 1:
+            return self.C
+        return 0.0 if self.S <= 1 else (self.S - s) / (self.S - 1)
+```
+
+```{python}
+#| label: parte-3-costos
+#| echo: true
+
+def simulate_trajectory(
+    mdp: MachineMDP,
+    replace_prob: Callable[[int], float],
+    horizon: int,
+    initial_state: Optional[int] = None,
+    seed: Optional[int] = None,
+) -> Tuple[List[int], List[int], float]:
+    rng = random.Random(seed)
+    s = initial_state if initial_state is not None else rng.randint(1, mdp.S)
+
+    states: List[int] = [s]
+    actions: List[int] = []
+    J = 0.0
+
+    for _ in range(horizon):
+        p = float(replace_prob(s))
+        p = 0.0 if p < 0.0 else 1.0 if p > 1.0 else p
+        a = 1 if rng.random() < p else 0
+
+        J += mdp.cost(s, a)
+        actions.append(a)
+
+        s = mdp.step(s, a, rng)
+        states.append(s)
+
+    return states, actions, J
+```
+
+```{python}
+#| label: parte-3-simulacion
+#| echo: true
+
+def make_random_policy(S: int) -> Callable[[int], float]:
+    if S <= 1:
+        return lambda s: 0.0
+    return lambda s: (S - s) / (S - 1)
+
+
+def deterministic_policy(s: int) -> float:
+    return 1.0 if s == 1 else 0.0
+```
+
+```{python}
+#| label: parte-3-politicas
+#| echo: true
+
+num_states = 4
+theta = 0.4
+replacement_cost = 2.0
+horizon = 40
+initial_state = num_states
+seed = 7
+
+mdp = MachineMDP(S=num_states, theta=theta, C=replacement_cost)
+
+policy_random = make_random_policy(mdp.S)
+policy_deterministic = deterministic_policy
+```
+
+```{python}
+#| label: parte-3-ejemplo
+#| echo: true
+
+states_random, actions_random, J_random = simulate_trajectory(
+    mdp, policy_random, horizon, initial_state, seed
+)
+states_det, actions_det, J_det = simulate_trajectory(
+    mdp, policy_deterministic, horizon, initial_state, seed
+)
+
+def pretty_run(title: str, s: List[int], a: List[int], J: float) -> None:
+    print(f"\n{title}\n" + "-" * len(title))
+    print(f"J = {J:.4f}")
+    print(f"s = {s}")
+    print(f"a = {a}")
+
+
+pretty_run("Política aleatoria (mismo s0 y semilla)", states_random, actions_random, J_random)
+pretty_run("Política determinística (solo reemplaza en s=1)", states_det, actions_det, J_det)
+```
+
+Con $S=4$, $\theta=0{,}4$, $C=2$, $T=40$, $s_0=S$ y `seed=7`, la salida muestra dos trayectorias comparables (misma semilla y mismo estado inicial). La determinística solo incurrirá en costo $C$ cuando pase por $s=1$ y elija reemplazar; la aleatoria mezcla reemplazos según $(S-s)/(S-1)$.
+
+## Parte 4
+
+Se implementa una función `plot_trajectory(replace_prob, policy_label='')` que ejecuta una simulación y grafica, para $k=0,\ldots,T-1$, la trayectoria del estado $s_k$ y la trayectoria de la acción $a_k$. Además, se muestra el costo acumulado $J$.
+
+
+
+```{python}
+#| label: parte-4-plot
+#| echo: true
+
+def plot_trajectory(
+    mdp: MachineMDP,
+    replace_prob: Callable[[int], float],
+    horizon: int,
+    initial_state: Optional[int] = None,
+    seed: Optional[int] = None,
+    label: str = "",
+    dpi: int = 300,
+) -> float:
+    states, actions, J = simulate_trajectory(mdp, replace_prob, horizon, initial_state, seed)
+    fig, (ax_state, ax_action) = plt.subplots(2, 1, figsize=(10, 6), sharex=True, constrained_layout=True, dpi=dpi)
+    fig.suptitle(f"Trayectoria del MDP{f' — {label}' if label else ''} (J = {J:.4f})")
+
+    c_state, c_action = sns.color_palette("deep", 2)
+    ax_state.plot(range(len(states)), states, drawstyle="steps-post", linewidth=2, color=c_state)
+    ax_state.set_ylabel("Estado $s_k$")
+    ax_state.set_yticks(list(range(1, mdp.S + 1)))
+    ax_state.grid(True, alpha=0.35)
+
+    ax_action.plot(range(len(actions)), actions, drawstyle="steps-post", linewidth=2, color=c_action)
+    ax_action.set_xlabel("Tiempo $k$")
+    ax_action.set_ylabel("Acción $a_k$")
+    ax_action.set_yticks([0, 1])
+    ax_action.grid(True, alpha=0.35)
+
+    plt.show()
+    return J
+```
+
+```{python}
+#| label: parte-4-ejemplo
+#| echo: true
+
+num_states = 20
+theta = 0.4
+replacement_cost = 2.0
+horizon = 60
+initial_state = num_states
+seed = 7
+
+mdp = MachineMDP(S=num_states, theta=theta, C=replacement_cost)
+policy_random = make_random_policy(mdp.S)
+policy_deterministic = deterministic_policy
+
+
+
+```
+
+```{python}
+#| label: parte-4-ejemplo-random
+_ = plot_trajectory(mdp, policy_random, horizon,initial_state, seed, "Política aleatoria")
+```
+
+```{python}
+#| label: parte-4-ejemplo-deterministic
+_ = plot_trajectory(mdp, policy_deterministic, horizon, initial_state, seed, "Política determinística")
+```
+
+## Parte 5
+
+Queremos aproximar $V^*(s)$ resolviendo la ecuación de Bellman
+
+$$
+V_{k+1}(s) = \min_{a \in \{0,1\}} \left[ c(s,a) + \gamma \sum_{s'} P(s' \mid s,a)\, V_k(s') \right].
+$$
+
+En este MDP no hace falta construir matrices $P(0)$, $P(1)$: las transiciones tienen a lo sumo **dos** estados siguientes posibles.
+
+```{python}
+#| label: parte-5-value-iteration
+#| echo: true
+
+def value_iteration(mdp: MachineMDP, gamma: float, tol: float = 1e-10, max_iter: int = 200_000):
+    V = np.zeros(mdp.S + 1)  # usamos índices 1..S
+    pi = np.zeros(mdp.S + 1, dtype=int)
+
+    for it in range(max_iter):
+        V_old = V.copy()
+
+        for s in range(1, mdp.S + 1):
+            q_replace = mdp.C + gamma * V_old[mdp.S]
+            s_down = 1 if s == 1 else s - 1
+            q_keep = mdp.cost(s, 0) + gamma * ((1 - mdp.theta) * V_old[s] + mdp.theta * V_old[s_down])
+
+            if q_replace <= q_keep:
+                V[s], pi[s] = q_replace, 1
+            else:
+                V[s], pi[s] = q_keep, 0
+
+        if np.max(np.abs(V - V_old)) < tol:
+            return V[1:], pi[1:], it + 1
+
+    return V[1:], pi[1:], max_iter
+```
+
+```{python}
+#| label: parte-5-ejemplo
+#| echo: true
+
+S, theta, C = 100, 0.5, 100  # enunciado: S=100, θ=0.5, R/C=100
+gamma = 0.99
+mdp = MachineMDP(S=S, theta=theta, C=C)
+
+V_star, pi_star, iters = value_iteration(mdp, gamma)
+
+print(f"Convergió en {iters} iteraciones (γ={gamma}).")
+print("Política óptima (primeros 25 estados):", pi_star[:25].tolist())
+print("Estados donde reemplaza (a=1):", [i for i, a in enumerate(pi_star, start=1) if a == 1][:25], "...")
+```
+
+## Parte 6 
+
+En esta parte, para distintos parámetros $\theta$, $C$ y $\gamma$, calculamos la **política óptima** $\pi^*$ por iteración de valores y luego simulamos/graficamos algunas trayectorias del MDP siguiendo esa política.
+
+Para que los gráficos sean legibles, usaremos un número chico de estados $S=20$.
+
+```{python}
+#| label: parte-6-utils
+#| echo: true
+
+def optimal_policy(mdp: MachineMDP, gamma: float) -> Tuple[np.ndarray, int]:
+    """devuelve (pi*, iters) donde pi*[s-1] ∈ {0,1} es la acción óptima en s."""
+    _, pi_star, iters = value_iteration(mdp, gamma)
+    return pi_star, iters
+
+
+def make_optimal_replace_prob(pi_star: np.ndarray) -> Callable[[int], float]:
+    """convierte pi*[s-1] ∈ {0,1} en replace_prob(s) ∈ {0,1} para simular."""
+    pi_star = np.asarray(pi_star, dtype=int)
+
+    def replace_prob(s: int) -> float:
+        if not (1 <= s <= len(pi_star)):
+            raise ValueError(f"Estado fuera de rango: s={s}")
+        return float(pi_star[s - 1])
+
+    return replace_prob
+
+
+def policy_summary(pi_star: np.ndarray, max_show: int = 25) -> str:
+    """resumen compacto; detecta si parece una política umbral."""
+    pi_star = np.asarray(pi_star, dtype=int)
+    replace_states = [s for s, a in enumerate(pi_star, start=1) if a == 1]
+
+    if len(replace_states) == 0:
+        return "π*: nunca reemplaza (a=1 en ningún estado)."
+    if len(replace_states) == len(pi_star):
+        return "π*: siempre reemplaza (a=1 en todos los estados)."
+
+    t = max(replace_states)
+    is_threshold = all(pi_star[s - 1] == 1 for s in range(1, t + 1)) and all(
+        pi_star[s - 1] == 0 for s in range(t + 1, len(pi_star) + 1)
+    )
+    if is_threshold:
+        return f"π*: política umbral (reemplaza si s ≤ {t})."
+
+    head = replace_states[:max_show]
+    tail = " ..." if len(replace_states) > max_show else ""
+    return f"π*: reemplaza en estados {head}{tail}"
+
+
+def plot_optimal_trajectories(
+    S: int,
+    theta: float,
+    replacement_cost: float,
+    gamma: float,
+    horizon: int,
+    initial_state: int,
+    seed: int = 20260428,
+) -> None:
+    mdp = MachineMDP(S=S, theta=theta, C=replacement_cost)
+    pi_star, iters = optimal_policy(mdp, gamma)
+    replace_prob = make_optimal_replace_prob(pi_star)
+
+    print(f"S={S}, theta={theta}, C={replacement_cost}, gamma={gamma} (iters={iters})")
+    print(policy_summary(pi_star))
+
+    label = f"$\\pi^*\\ (\\theta={theta},\\ C={replacement_cost},\\ \\gamma={gamma})$"
+    _ = plot_trajectory(
+        mdp,
+        replace_prob,
+        horizon,
+        initial_state,
+        seed,
+        label,
+    )
+```
+
+### $\gamma=0.5$
+
+Con $\gamma$ chico, el agente **descuenta fuertemente el futuro**: tenderá a comparar más el costo inmediato $C$ vs. el costo inmediato de “no reemplazar”, y a “tolerar” degradación futura.
+
+```{python}
+#| label: parte-6a-ejemplos
+#| echo: true
+
+S = 20
+horizon = 60
+initial_state = S
+seed = 20260428
+
+gamma = 0.5
+
+# θ chico (degradación lenta) vs θ grande (degradación rápida)
+thetas = [0.1, 0.9]
+
+# C chico vs C grande (en la misma escala que antes)
+replacement_costs = [0.2, 5.0]
+
+for theta in thetas:
+    for replacement_cost in replacement_costs:
+        plot_optimal_trajectories(S, theta, replacement_cost, gamma, horizon, initial_state, seed)
+```
+
+**Comentarios:** 
+
+- Con $\gamma=0.5$ (alto descuento), la política óptima queda dominada por el costo de reemplazo $C$.
+
+- Con **$C$ chico** (p.ej. $C=0.2$), la política es de **umbral alto** y reemplaza en la mayoría de los estados: para $\theta=0.1$ reemplaza si $s\le 18$ y para $\theta=0.9$ si $s\le 17$.
+- Con **$C$ grande** (p.ej. $C=5.0$), el reemplazo resulta demasiado costoso en términos inmediatos y la política óptima es **no reemplazar** para $\theta=0.1$ y $\theta=0.9$.
+
+En conjunto, esto es consistente con la intuición: cuando el futuro pesa poco, el beneficio de evitar degradación futura tiene menor relevancia y la decisión se concentra en comparar el costo inmediato de reemplazar frente a continuar operando.
+
+### $\gamma=0.99$
+
+Con $\gamma$ grande, el agente valora mucho el futuro: ahora sí “paga” reemplazar para evitar una larga secuencia de estados malos y costos futuros.
+
+```{python}
+#| label: parte-6b-ejemplos
+#| echo: true
+
+gamma = 0.99
+
+thetas = [0.1, 0.9]
+replacement_costs = [0.2, 5.0]
+
+for theta in thetas:
+    for replacement_cost in replacement_costs:
+        plot_optimal_trajectories(S, theta, replacement_cost, gamma, horizon, initial_state, seed)
+```
+
+**Comentarios: **
+
+- Con $\gamma=0.99$ el futuro pesa significativamente más. En este caso la política óptima toma la forma de una **política umbral**, donde el umbral depende de $(\theta, C)$.
+
+- Con **$C$ chico** ($C=0.2$), el umbral es muy alto: para $\theta=0.1$ reemplaza si $s\le 19$ y para $\theta=0.9$ si $s\le 18$.
+- Con **$C$ grande** ($C=5.0$), el umbral disminuye de manera marcada: para $\theta=0.1$ reemplaza si $s\le 15$ y para $\theta=0.9$ si $s\le 7$.
+
+Respecto de $\gamma=0.5$, el aumento de $\gamma$ hace que el agente internalice el costo acumulado de permanecer en estados de baja calidad; por ello, incluso con $C$ grande, existe un conjunto de estados en los que conviene reemplazar. Además, para $C$ grande, una degradación muy rápida (alta $\theta$) reduce el umbral: el reemplazo temprano aporta un beneficio de corta duración, por lo que se vuelve preferible postergar el reemplazo hasta estados suficientemente deteriorados.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

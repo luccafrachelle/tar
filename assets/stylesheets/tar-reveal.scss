@@ -1,0 +1,140 @@
+/*-- scss:defaults --*/
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&family=Rubik:wght@400;600;700&display=swap');
+
+$presentation-font-size-root: 36px;
+$presentation-heading-font: 'Rubik', sans-serif;
+$presentation-font-family: 'Poppins', sans-serif;
+$presentation-heading-color: #333;
+$presentation-font-color: #333;
+$link-color: #F28482;
+$selection-bg: #F28482;
+
+/*-- scss:rules --*/
+
+.reveal .slide-background.present {
+  background-color: #FFFAFA;
+}
+
+.reveal .progress span {
+  background: #F28482;
+}
+
+.reveal .controls .navigate-left,
+.reveal .controls .navigate-right,
+.reveal .controls .navigate-up,
+.reveal .controls .navigate-down {
+  color: #F28482;
+}
+
+.reveal .footer {
+  font-size: 0.42em;
+  color: #F28482;
+}
+
+.reveal h1 {
+  font-size: 1.6em;
+  color: #333;
+}
+
+.reveal h2 {
+  font-size: 1.1em;
+  color: #333;
+}
+
+.reveal p,
+.reveal li {
+  font-size: 0.7em;
+  line-height: 1.45;
+}
+
+.reveal strong {
+  color: #E06B68;
+}
+
+.reveal a {
+  color: #F28482 !important;
+}
+
+.reveal ul,
+.reveal ol {
+  text-align: left;
+}
+
+.reveal .small {
+  font-size: 0.6em;
+}
+
+.reveal .columns {
+  display: flex;
+  gap: 1.2rem;
+  align-items: flex-start;
+}
+
+.reveal .column {
+  flex: 1;
+}
+
+.reveal .callout {
+  background: #FDE8E7;
+  border-left: 4px solid #F28482;
+  border-radius: 6px;
+  padding: 0.55em 0.9em;
+  font-size: 0.65em;
+  text-align: left;
+  color: #333;
+}
+
+.reveal table {
+  font-size: 0.6em;
+  border-collapse: collapse;
+}
+
+.reveal table th {
+  background: #F28482;
+  color: #fff;
+  padding: 0.35em 0.6em;
+}
+
+.reveal table td {
+  padding: 0.3em 0.6em;
+  border-bottom: 1px solid #FDE8E7;
+}
+
+.reveal pre code {
+  font-size: 0.55em;
+  max-height: 260px;
+}
+
+.reveal .author-name {
+  font-size: 0.85em;
+  margin-top: 1.2em;
+}
+
+.reveal .pipeline-step {
+  background: #FDE8E7;
+  border: 2px solid #F28482;
+  border-radius: 8px;
+  padding: 0.5em 0.8em;
+  font-size: 0.65em;
+  text-align: center;
+  margin: 0.3em 0;
+}
+
+.reveal .fragment {
+  transition: all 0.8s ease;
+}
+
+.reveal section img {
+  max-height: 500px;
+  width: auto;
+  object-fit: contain;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.reveal section img.slide-figure-wide {
+  max-height: 340px;
+}
+
+.reveal section img.slide-figure-tall {
+  max-height: 420px;
+}

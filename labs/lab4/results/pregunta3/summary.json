@@ -1,0 +1,26 @@
+{
+  "baseline_random": {
+    "mean_reward": 8.458333333333334,
+    "crash_rate": 0.2,
+    "mean_episode_length": 9.533333333333333
+  },
+  "success_criteria": {
+    "max_crash_rate": 0.1,
+    "min_mean_episode_length": 10.0,
+    "min_mean_reward": 9.5
+  },
+  "n_runs": 20,
+  "n_successful": 5,
+  "best_run": {
+    "label": "configuración mínima que resuelve (menor H y T con éxito)",
+    "hidden": 32,
+    "timesteps": 50000,
+    "arch": "[32,32]",
+    "mean_reward": 9.738888888888887,
+    "crash_rate": 0.0666666666666666,
+    "mean_episode_length": 11.0,
+    "train_seconds": 741.4,
+    "success": true
+  },
+  "generated_at": "2026-06-28T19:58:04.228076+00:00"
+}

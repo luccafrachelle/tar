@@ -1,0 +1,52 @@
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Render site
+        run: |
+          quarto render index.qmd
+          quarto render labs/lab1/Lab1.qmd
+          quarto render labs/lab2/Lab2.qmd
+          quarto render labs/lab3/Lab3.qmd
+          quarto render labs/lab4/Lab4.qmd
+          quarto render entrega/rfhf/RFHF.qmd
+          quarto render entrega/rfhf/RLHF-Notas.qmd
+
+      - name: Prepare _site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -r assets labs entrega _site/
+          find _site -name '*.qmd' -delete
+          find _site -name '*.ipynb' -delete
+          find _site -name '*.py' -delete
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

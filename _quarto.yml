@@ -1,0 +1,69 @@
+project:
+  type: default
+  resources:
+    - assets
+
+lang: es
+bibliography: references.bib
+
+metadata:
+  author: "Lucca Frachelle"
+  subtitle: "TAR: Taller de Aprendizaje por Refuerzo 2026"
+  link-external-newwindow: true
+  title-block-banner: false
+  date-format: long
+  fig-align: center
+  anchor-sections: true
+  email-obfuscation: javascript
+  code-copy: true
+  code-link: false
+  code-overflow: wrap
+  syntax-highlighting:
+    light: github-light
+    dark: github-dark
+  code-tools:
+    source: false
+    toggle: false
+    caption: none
+
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    number-sections: false
+    echo: true
+    grid:
+      body-width: 1000px
+    theme:
+      light:
+        - cosmo
+        - assets/stylesheets/theme.scss
+        - assets/stylesheets/projects.scss
+        - assets/stylesheets/tar-lab.scss
+      dark:
+        - cosmo
+        - assets/stylesheets/theme.scss
+        - assets/stylesheets/projects.scss
+        - assets/stylesheets/tar-lab.scss
+    include-after-body:
+      - file: assets/scripts/ordinal-dates.html
+      - file: assets/scripts/current-year.html
+      - file: assets/scripts/external-links.html
+      - file: assets/scripts/title-block-cleanup.html
+
+  revealjs:
+    theme:
+      - default
+      - assets/stylesheets/tar-reveal.scss
+    slide-number: c/t
+    progress: true
+    html-math-method: katex
+    footer: "Lucca Frachelle · TAR 2026"
+    transition: slide
+    transition-speed: slow
+    background-transition: fade
+    width: 1280
+    height: 720
+    center: true
+    chalkboard: false
+    code-copy: true
