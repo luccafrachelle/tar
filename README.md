@@ -61,6 +61,8 @@ python labs/lab4/scripts/lab4_pregunta3_videos.py
 python labs/lab4/scripts/lab4_pregunta3_tables.py
 ```
 
+Los fragmentos HTML embebidos (`results_tables_embed.html`, `model_videos_embed.html`) están en `.gitignore`; el workflow de GitHub Pages los regenera antes del render.
+
 ## Estilos
 
 Los estilos compartidos están en `_quarto.yml` y `assets/stylesheets/`:

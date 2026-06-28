@@ -22,11 +22,6 @@ import json
 import warnings
 from pathlib import Path
 
-import gymnasium as gym
-import highway_env  # noqa: F401
-import imageio
-from stable_baselines3 import PPO
-
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,6 +55,11 @@ def load_results() -> list[dict]:
 
 
 def record_episode(model_path: Path, video_path: Path) -> int:
+    import gymnasium as gym
+    import highway_env  # noqa: F401
+    import imageio
+    from stable_baselines3 import PPO
+
     env = gym.make("roundabout-v0", render_mode="rgb_array")
     env.unwrapped.configure({"duration": RECORD_DURATION})
     model = PPO.load(str(model_path))

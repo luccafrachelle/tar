@@ -25,6 +25,16 @@ jobs:
 
       - uses: quarto-dev/quarto-actions/setup@v2
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate Lab4 embed HTML
+        run: |
+          pip install pandas
+          python labs/lab4/scripts/lab4_pregunta3_tables.py
+          python labs/lab4/scripts/lab4_pregunta3_videos.py --html-only --skip-existing
+
       - name: Render site
         run: |
           quarto render index.qmd
