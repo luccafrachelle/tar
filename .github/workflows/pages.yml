@@ -26,7 +26,7 @@ jobs:
       - name: Verificar sitio estático
         run: |
           test -f site/index.html || { echo "Falta site/index.html — corré bash scripts/render-site.sh y commiteá site/."; exit 1; }
-          test -f site/lab4.html || { echo "Falta site/lab4.html"; exit 1; }
+          test -f site/labs/lab4.html || { echo "Falta site/labs/lab4.html"; exit 1; }
 
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -5,22 +5,19 @@
 **/.quarto/
 /.quarto/
 
-# HTML generado junto a fuentes (no versionar)
+# HTML generado junto a fuentes
 /index.html
 /index_files/
 /lab*.html
 /Lab*_files/
 labs/**/*.html
 labs/**/*_files/
+labs/**/interactive/
 entrega/**/*.html
 entrega/**/*_files/
-Lab4_files/
-Lab4_results/
 
-# Artefactos pesados opcionales (descomentar si no querés versionar modelos)
-# labs/lab4/results/pregunta3/models/
-
-# Sitio publicado (GitHub Pages) — solo HTML embebido en site/
+# Sitio publicado
 !site/
 site/.venv/
 site/assets/
+site/**/interactive/

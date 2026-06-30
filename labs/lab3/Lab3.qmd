@@ -15,8 +15,8 @@ format:
     include-after-body:
       - file: assets/scripts/categories-alphabetical.html
       - file: assets/scripts/modal-clipboardjs.html
+    embed-resources: true
 lightbox: auto
-embed-resources: true
 jupyter: tar-lab2
 warning: false
 ---
@@ -245,29 +245,23 @@ def _downsample_grid(U, V, step=2):
 
 
 def _show_plotly(fig, name):
-    """Guarda Plotly en HTML aparte e inserta un iframe."""
-    from pathlib import Path
-    out_dir = Path("interactive")
-    out_dir.mkdir(exist_ok=True)
-    path = out_dir / f"{name}.html"
-    fig.write_html(
-        path,
+    """Inserta Plotly inline (embed-resources lo autocontiene en el HTML final)."""
+    html = fig.to_html(
+        full_html=False,
         include_plotlyjs="cdn",
         config={"displayModeBar": True, "responsive": True},
+        div_id=name,
     )
     print(
-        f'<iframe src="{path.as_posix()}" width="100%" height="560" '
-        f'style="border:none; max-width:980px;" loading="lazy" '
-        f'title="{name}"></iframe>'
+        f'<div class="plotly-embed" style="max-width:980px;margin:1rem 0;">{html}</div>'
     )
 
 
 def _show_mc_player(frames, interval=40, name="mountaincar"):
-    """Reproductor HTML con pausa, velocidad y barra de progreso."""
+    """Reproductor HTML inline con pausa, velocidad y barra de progreso."""
     import base64
     import json
     from io import BytesIO
-    from pathlib import Path
 
     b64_frames = []
     for frame in frames:
@@ -281,54 +275,49 @@ def _show_mc_player(frames, interval=40, name="mountaincar"):
         b64_frames.append(base64.b64encode(buf.getvalue()).decode())
 
     n = len(b64_frames)
-    out_dir = Path("interactive")
-    out_dir.mkdir(exist_ok=True)
-    path = out_dir / f"{name}_player.html"
     frames_json = json.dumps(b64_frames)
 
-    html = f"""<!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8">
-<style>
-  html, body {{ margin: 0; padding: 0; overflow: hidden; background: #fafafa; }}
-  body {{ font-family: system-ui, sans-serif; padding: 6px 8px 8px; }}
-  .mc-wrap {{ max-width: 500px; margin: 0 auto; }}
-  #mc-frame {{
+    html = f"""<div class="mc-player-embed" style="max-width:520px;margin:1rem 0;">
+<style scoped>
+  .mc-player-embed .mc-wrap {{ max-width: 500px; margin: 0 auto; }}
+  .mc-player-embed #mc-frame-{name} {{
     display: block; width: 100%; max-height: 200px;
     object-fit: contain; border-radius: 4px; background: #eee;
   }}
-  .mc-ctrl {{
+  .mc-player-embed .mc-ctrl {{
     display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center;
     margin-top: 6px; font-size: 12px; line-height: 1.2;
   }}
-  .mc-ctrl button {{
+  .mc-player-embed .mc-ctrl button {{
     padding: 4px 10px; cursor: pointer; border: 1px solid #ccc;
     border-radius: 4px; background: #fff; font-size: 12px;
   }}
-  .mc-ctrl button:hover {{ background: #f0f0f0; }}
-  #mc-speed {{ width: 72px; vertical-align: middle; }}
-  #mc-scrub {{ flex: 1 1 140px; min-width: 100px; vertical-align: middle; }}
-  #mc-info {{ color: #555; font-size: 11px; white-space: nowrap; }}
-</style></head><body>
+  .mc-player-embed .mc-ctrl button:hover {{ background: #f0f0f0; }}
+  .mc-player-embed #mc-speed-{name} {{ width: 72px; vertical-align: middle; }}
+  .mc-player-embed #mc-scrub-{name} {{ flex: 1 1 140px; min-width: 100px; vertical-align: middle; }}
+  .mc-player-embed #mc-info-{name} {{ color: #555; font-size: 11px; white-space: nowrap; }}
+</style>
 <div class="mc-wrap">
-  <img id="mc-frame" alt="Mountain Car">
+  <img id="mc-frame-{name}" alt="Mountain Car">
   <div class="mc-ctrl">
-    <button type="button" id="mc-play">▶ Reproducir</button>
-    <button type="button" id="mc-pause">⏸ Pausar</button>
-    <label>Velocidad <input type="range" id="mc-speed" min="0.25" max="3" step="0.25" value="1">
-      <span id="mc-speed-lbl">1×</span></label>
-    <input type="range" id="mc-scrub" min="0" max="{n - 1}" value="0">
-    <span id="mc-info">1 / {n}</span>
+    <button type="button" id="mc-play-{name}">▶ Reproducir</button>
+    <button type="button" id="mc-pause-{name}">⏸ Pausar</button>
+    <label>Velocidad <input type="range" id="mc-speed-{name}" min="0.25" max="3" step="0.25" value="1">
+      <span id="mc-speed-lbl-{name}">1×</span></label>
+    <input type="range" id="mc-scrub-{name}" min="0" max="{n - 1}" value="0">
+    <span id="mc-info-{name}">1 / {n}</span>
   </div>
 </div>
 <script>
+(function() {{
 const FRAMES = {frames_json};
 const BASE_MS = {interval};
 let idx = 0, playing = true, speed = 1, timer = null;
-const img = document.getElementById("mc-frame");
-const scrub = document.getElementById("mc-scrub");
-const info = document.getElementById("mc-info");
-const speedIn = document.getElementById("mc-speed");
-const speedLbl = document.getElementById("mc-speed-lbl");
+const img = document.getElementById("mc-frame-{name}");
+const scrub = document.getElementById("mc-scrub-{name}");
+const info = document.getElementById("mc-info-{name}");
+const speedIn = document.getElementById("mc-speed-{name}");
+const speedLbl = document.getElementById("mc-speed-lbl-{name}");
 
 function show(i) {{
   idx = Math.max(0, Math.min(FRAMES.length - 1, i));
@@ -343,8 +332,8 @@ function schedule() {{
   if (timer) clearInterval(timer);
   if (playing) timer = setInterval(tick, BASE_MS / speed);
 }}
-document.getElementById("mc-play").onclick = () => {{ playing = true; schedule(); }};
-document.getElementById("mc-pause").onclick = () => {{ playing = false; schedule(); }};
+document.getElementById("mc-play-{name}").onclick = () => {{ playing = true; schedule(); }};
+document.getElementById("mc-pause-{name}").onclick = () => {{ playing = false; schedule(); }};
 speedIn.oninput = () => {{
   speed = parseFloat(speedIn.value);
   speedLbl.textContent = speed + "×";
@@ -353,13 +342,9 @@ speedIn.oninput = () => {{
 scrub.oninput = () => {{ show(parseInt(scrub.value, 10)); }};
 show(0);
 schedule();
-</script></body></html>"""
-    path.write_text(html, encoding="utf-8")
-    print(
-        f'<iframe src="{path.as_posix()}" width="100%" height="285" '
-        f'style="border:none; max-width:520px;" loading="lazy" '
-        f'title="Mountain Car"></iframe>'
-    )
+}})();
+</script></div>"""
+    print(html)
 
 
 def plot_policy_3d_interactive(policy, U, V, states, actions=(-1, 1)):

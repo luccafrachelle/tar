@@ -15,8 +15,8 @@ format:
     include-after-body:
       - file: assets/scripts/categories-alphabetical.html
       - file: assets/scripts/modal-clipboardjs.html
+    embed-resources: true
 lightbox: auto
-embed-resources: true
 jupyter: tar-lab2
 warning: false
 ---

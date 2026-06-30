@@ -5,8 +5,8 @@ format:
   html:
     code-fold: true
     code-summary: "Mostrar código"
+    embed-resources: true
 lightbox: auto
-embed-resources: true
 jupyter: autito-ppo
 warning: false
 ---

@@ -10,19 +10,15 @@ format:
     number-sections: false
     title-block-banner: false
     anchor-sections: false
-    link-external-newwindow: false
-    embed-resources: true
     include-after-body: []
     theme:
       light:
         - cosmo
         - assets/stylesheets/theme.scss
-        - assets/stylesheets/projects.scss
         - assets/stylesheets/tar-index.scss
       dark:
         - cosmo
         - assets/stylesheets/theme.scss
-        - assets/stylesheets/projects.scss
         - assets/stylesheets/tar-index.scss
 ---
 
@@ -30,10 +26,10 @@ Material del taller: laboratorios en Quarto y entrega final sobre InstructGPT / 
 
 ## Laboratorios
 
-- [Lab 1 — MDP](lab1.html)
-- [Lab 2 — Q-Learning y TD-Learning](lab2.html)
-- [Lab 3 — Actor-Critic](lab3.html)
-- [Lab 4 — PPO](lab4.html)
+- [Lab 1 — MDP](labs/lab1.html)
+- [Lab 2 — Q-Learning y TD-Learning](labs/lab2.html)
+- [Lab 3 — Actor-Critic](labs/lab3.html)
+- [Lab 4 — PPO](labs/lab4.html)
 
 ## Entrega final
 

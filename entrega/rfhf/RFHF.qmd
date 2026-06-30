@@ -3,7 +3,6 @@ title: "InstructGPT"
 subtitle: "RLHF con SFT, Reward Model y PPO"
 date: today
 format: revealjs
-embed-resources: true
 ---
 
 ## Plan (~10 min, esperemos!!!)
