@@ -212,7 +212,7 @@ def make_plots(df: pd.DataFrame, baseline: dict, out_dir: Path) -> None:
             pivot_c.sort_index(ascending=False),
             annot=True,
             fmt=".0%",
-            cmap="YlOrRd_r",
+            cmap="Reds",
             vmin=0,
             vmax=1,
             ax=ax,
@@ -329,21 +329,6 @@ def write_summary(df: pd.DataFrame, baseline: dict, out_dir: Path) -> dict:
     }
 
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False))
-
-    lines = [
-        "# Resumen Pregunta 3 — roundabout-v0\n",
-        f"- Baseline aleatorio: recompensa media {baseline['mean_reward']:.2f}, "
-        f"choque {baseline['crash_rate']:.0%}, "
-        f"longitud media {baseline['mean_episode_length']:.1f} pasos.\n",
-        f"- Criterio de éxito: choque ≤ {SUCCESS_CRASH_RATE:.0%}, "
-        f"longitud media ≥ {SUCCESS_MIN_LENGTH:.0f} pasos y "
-        f"recompensa media > {SUCCESS_MIN_REWARD}.\n",
-        f"- Runs exitosos: {successful.shape[0]} / {len(df)}.\n",
-        f"- {best_label}: H={int(best['hidden'])}, T={int(best['timesteps'])}, "
-        f"recompensa={best['mean_reward']:.2f}, choque={best['crash_rate']:.0%}, "
-        f"entrenamiento={best['train_seconds']:.0f}s.\n",
-    ]
-    (out_dir / "summary.md").write_text("".join(lines))
     return summary
 
 

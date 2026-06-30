@@ -11,6 +11,7 @@ format:
     title-block-banner: false
     anchor-sections: false
     link-external-newwindow: false
+    embed-resources: true
     include-after-body: []
     theme:
       light:
@@ -29,12 +30,12 @@ Material del taller: laboratorios en Quarto y entrega final sobre InstructGPT / 
 
 ## Laboratorios
 
-- [Lab 1 — MDP](labs/lab1/Lab1.html)
-- [Lab 2 — Q-Learning y TD-Learning](labs/lab2/Lab2.html)
-- [Lab 3 — Actor-Critic](labs/lab3/Lab3.html)
-- [Lab 4 — PPO](labs/lab4/Lab4.html)
+- [Lab 1 — MDP](lab1.html)
+- [Lab 2 — Q-Learning y TD-Learning](lab2.html)
+- [Lab 3 — Actor-Critic](lab3.html)
+- [Lab 4 — PPO](lab4.html)
 
 ## Entrega final
 
-- [Notas — InstructGPT y RLHF](entrega/rfhf/RLHF-Notas.html)
-- [Slides — InstructGPT](entrega/rfhf/RFHF.html)
+- [Notas — InstructGPT y RLHF](notas.html)
+- [Slides — InstructGPT](slides.html)

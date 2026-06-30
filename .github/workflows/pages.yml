@@ -23,25 +23,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verificar HTML renderizado
+      - name: Verificar sitio estático
         run: |
-          test -f index.html || { echo "Falta index.html — renderizá localmente y commiteá el HTML."; exit 1; }
-          test -f labs/lab4/Lab4.html || { echo "Falta labs/lab4/Lab4.html"; exit 1; }
-
-      - name: Armar sitio estático
-        run: |
-          mkdir -p _site
-          cp index.html _site/
-          cp -r assets _site/
-          cp -r labs _site/
-          cp -r entrega _site/
-          find _site -name '*.qmd' -delete
-          find _site -name '*.ipynb' -delete
-          find _site -name '*.py' -delete
+          test -f site/index.html || { echo "Falta site/index.html — corré bash scripts/render-site.sh y commiteá site/."; exit 1; }
+          test -f site/lab4.html || { echo "Falta site/lab4.html"; exit 1; }
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: site
 
       - id: deployment
         uses: actions/deploy-pages@v4

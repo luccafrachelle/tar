@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Genera un video por cada modelo PPO del barrido (Pregunta 3) y un reproductor HTML
-con botones para cambiar entre ellos (un solo video visible a la vez).
+Genera videos por modelo PPO del barrido (Pregunta 3) en dos duraciones:
+  - 11 s: horizonte de entrenamiento (recompensa del env)
+  - 20 s: generalización más allá del episodio de entrenamiento
 
 Salida:
-    labs/lab4/results/pregunta3/videos/*.mp4
-    labs/lab4/results/pregunta3/model_videos.html          (página standalone)
-    labs/lab4/results/pregunta3/model_videos_embed.html    (fragmento para Lab4.qmd)
+    labs/lab4/results/pregunta3/videos/d11/*.mp4
+    labs/lab4/results/pregunta3/videos/d20/*.mp4
+    labs/lab4/results/pregunta3/model_videos_embed_d11.html
+    labs/lab4/results/pregunta3/model_videos_embed_d20.html
 
 Uso:
     python scripts/lab4_pregunta3_videos.py
@@ -26,17 +28,30 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "results" / "pregunta3"
-VIDEOS_DIR = OUT_DIR / "videos"
 MODELS_DIR = OUT_DIR / "models"
 RESULTS_PATH = OUT_DIR / "results.json"
-HTML_PATH = OUT_DIR / "model_videos.html"
-EMBED_PATH = OUT_DIR / "model_videos_embed.html"
+EMBED_D11 = OUT_DIR / "model_videos_embed_d11.html"
+EMBED_D20 = OUT_DIR / "model_videos_embed_d20.html"
 
 RENDER_SEED = 42
 FPS = 6
-RECORD_DURATION = 40  # s de simulación (default del env: 11); muestra salida de la rotonda
-MAX_STEPS = RECORD_DURATION + 5
-PLAYER_ID = "rb-player"
+TRAIN_DURATION = 11
+GENERALIZE_DURATION = 20
+
+VIDEO_BLOCKS: tuple[tuple[int, str, Path, str], ...] = (
+    (
+        TRAIN_DURATION,
+        "rb-player-d11",
+        EMBED_D11,
+        "Horizonte de entrenamiento (11 s): mismo `duration` del entorno y ventana donde se acumula recompensa.",
+    ),
+    (
+        GENERALIZE_DURATION,
+        "rb-player-d20",
+        EMBED_D20,
+        "Generalización (20 s): comportamiento al extender la simulación más allá del truncamiento habitual.",
+    ),
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,25 +69,29 @@ def load_results() -> list[dict]:
     return json.loads(RESULTS_PATH.read_text())
 
 
-def record_episode(model_path: Path, video_path: Path) -> int:
+def videos_dir(duration: int) -> Path:
+    return OUT_DIR / "videos" / f"d{duration}"
+
+
+def record_episode(model_path: Path, video_path: Path, *, duration: int) -> int:
     import gymnasium as gym
     import highway_env  # noqa: F401
     import imageio
     from stable_baselines3 import PPO
 
     env = gym.make("roundabout-v0", render_mode="rgb_array")
-    env.unwrapped.configure({"duration": RECORD_DURATION})
+    env.unwrapped.configure({"duration": duration})
     model = PPO.load(str(model_path))
     obs, _ = env.reset(seed=RENDER_SEED)
     frames: list = []
 
-    for _ in range(MAX_STEPS):
+    for _ in range(duration + 5):
         action, _ = model.predict(obs, deterministic=True)
         obs, _, terminated, truncated, _ = env.step(action)
         frame = env.render()
         if frame is not None:
             frames.append(frame)
-        if truncated:
+        if truncated or terminated:
             break
 
     env.close()
@@ -96,7 +115,14 @@ def fmt_pct(x: float) -> str:
     return f"{100 * x:.0f}%"
 
 
-def build_css_only_player(entries: list[dict], *, standalone: bool) -> str:
+def build_css_only_player(
+    entries: list[dict],
+    *,
+    standalone: bool,
+    player_id: str,
+    duration: int,
+    blurb: str = "",
+) -> str:
     """Reproductor sin JavaScript (radios + CSS). Funciona embebido en Quarto."""
     n = len(entries)
     css_rules = [
@@ -118,6 +144,7 @@ def build_css_only_player(entries: list[dict], *, standalone: bool) -> str:
         ".rb-wrap .rb-badge.ok { background:var(--rb-ok-bg); color:var(--rb-ok); }",
         ".rb-wrap .rb-badge.bad { background:var(--rb-bad-bg); color:var(--rb-bad); }",
         ".rb-wrap .rb-controls-label { font-size:.85rem; font-weight:600; margin:0 0 .6rem; }",
+        ".rb-wrap .rb-blurb { color:var(--rb-muted,#5c6570); font-size:.9rem; margin:0 0 .75rem; line-height:1.45; }",
         ".rb-wrap .rb-btn-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(118px,1fr)); gap:.45rem; }",
         ".rb-wrap .rb-model-btn { display:block; border:1px solid var(--rb-border); background:var(--bs-body-bg,#fff);",
         "  color:inherit; border-radius:8px; padding:.45rem .35rem; font-size:.8rem; cursor:pointer;",
@@ -130,10 +157,12 @@ def build_css_only_player(entries: list[dict], *, standalone: bool) -> str:
         ".rb-wrap .rb-model-btn .dot.ok { background:var(--rb-ok); }",
         ".rb-wrap .rb-model-btn .dot.bad { background:var(--rb-bad); }",
     ]
+    radio_name = f"{player_id}-sel"
     for i in range(n):
-        css_rules.append(f"#rb-p-{i}:checked ~ .rb-panels .rb-panel-{i} {{ display:block; }}")
+        rid = f"{player_id}-p-{i}"
+        css_rules.append(f"#{rid}:checked ~ .rb-panels .rb-panel-{i} {{ display:block; }}")
         css_rules.append(
-            f"#rb-p-{i}:checked ~ .rb-btn-grid label[for='rb-p-{i}'] {{"
+            f"#{rid}:checked ~ .rb-btn-grid label[for='{rid}'] {{"
             f" border-color:var(--rb-accent); background:var(--rb-accent-soft);"
             f" box-shadow:0 0 0 2px rgba(37,99,235,.25); font-weight:650; }}"
         )
@@ -142,12 +171,15 @@ def build_css_only_player(entries: list[dict], *, standalone: bool) -> str:
     labels = []
     panels = []
     for i, e in enumerate(entries):
+        rid = f"{player_id}-p-{i}"
         checked = " checked" if i == 0 else ""
-        radios.append(f'<input type="radio" name="rb-player" id="rb-p-{i}" class="rb-input"{checked}>')
+        radios.append(
+            f'<input type="radio" name="{radio_name}" id="{rid}" class="rb-input"{checked}>'
+        )
         ok_cls = "ok" if e["success"] else "bad"
         ok_txt = "OK" if e["success"] else "—"
         labels.append(
-            f'<label for="rb-p-{i}" class="rb-model-btn">'
+            f'<label for="{rid}" class="rb-model-btn">'
             f'<span class="h">H={e["hidden"]}</span>'
             f'<span class="t">T={e["timesteps"]:,}</span>'
             f'<span class="t"><span class="dot {ok_cls}"></span>{ok_txt}</span>'
@@ -171,25 +203,26 @@ def build_css_only_player(entries: list[dict], *, standalone: bool) -> str:
             f"<div><dt>Recompensa (eval.)</dt><dd>{e['mean_reward']:.2f}</dd></div>"
             f"<div><dt>Choque</dt><dd>{fmt_pct(e['crash_rate'])}</dd></div>"
             f"<div><dt>Longitud</dt><dd>{e['mean_episode_length']:.1f} pasos</dd></div>"
+            f"<div><dt>Simulación</dt><dd>{duration} s</dd></div>"
             f"<div><dt>Resultado</dt><dd>{badge}</dd></div>"
             f"</dl></div></div>"
         )
 
-    subtitle = ""
+    blurb_html = f'<p class="rb-blurb">{blurb}</p>' if blurb else ""
+    standalone_note = ""
     if standalone:
-        subtitle = (
-            f'<p style="color:var(--rb-muted,#5c6570);font-size:.92rem;margin:0 0 .85rem;">'
-            f"Un episodio determinista por configuración (semilla {RENDER_SEED}, "
-            f"{RECORD_DURATION}&nbsp;s de simulación). Elegí un botón para cambiar el video.</p>"
+        standalone_note = (
+            f'<p class="rb-blurb">Episodio determinista (semilla {RENDER_SEED}). '
+            f"Elegí un botón para cambiar de modelo.</p>"
         )
 
     return f"""<style>
 {chr(10).join(css_rules)}
 </style>
-<div class="rb-wrap" id="{PLAYER_ID}">
-  {subtitle}
+<div class="rb-wrap" id="{player_id}">
+  {standalone_note or blurb_html}
   {''.join(radios)}
-  <p class="rb-controls-label">Modelos entrenados ({n})</p>
+  <p class="rb-controls-label">Modelos entrenados ({n}) · {duration}&nbsp;s</p>
   <div class="rb-btn-grid">
     {''.join(labels)}
   </div>
@@ -200,52 +233,35 @@ def build_css_only_player(entries: list[dict], *, standalone: bool) -> str:
 """
 
 
-def build_standalone_page(entries: list[dict]) -> str:
-    body = build_css_only_player(entries, standalone=True)
-    return f"""<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pregunta 3 — Videos por modelo (roundabout-v0)</title>
-</head>
-<body style="margin:0;font-family:system-ui,sans-serif;background:#f8f9fb;">
-  <div style="max-width:980px;margin:0 auto;padding:1.25rem 1rem 2rem;">
-    <h1 style="font-size:1.25rem;margin:0 0 0.35rem;">Roundabout-v0 — comportamiento por modelo</h1>
-    {body}
-  </div>
-</body>
-</html>
-"""
-
-
-def build_embed_fragment(entries: list[dict]) -> str:
-    return build_css_only_player(entries, standalone=False)
-
-
-def collect_entries(results: list[dict], args: argparse.Namespace) -> list[dict]:
+def collect_entries(
+    results: list[dict],
+    args: argparse.Namespace,
+    *,
+    duration: int,
+) -> list[dict]:
     html_entries: list[dict] = []
+    out_videos = videos_dir(duration)
 
     for i, row in enumerate(results, 1):
         hidden = row["hidden"]
         timesteps = row["timesteps"]
         model_path = MODELS_DIR / f"ppo_H{hidden}_T{timesteps}.zip"
         video_name = f"H{hidden}_T{timesteps}.mp4"
-        video_path = VIDEOS_DIR / video_name
+        video_path = out_videos / video_name
 
         if not args.html_only:
             if not model_path.exists():
                 print(f"[skip] modelo no encontrado: {model_path.name}")
                 continue
             if args.skip_existing and video_path.exists():
-                print(f"[skip] video existente: {video_name}")
+                print(f"[skip] video existente ({duration}s): {video_name}")
             else:
-                print(f"[{i}/{len(results)}] Grabando {video_name}…", flush=True)
-                n_frames = record_episode(model_path, video_path)
+                print(f"[{i}/{len(results)}] Grabando {duration}s → {video_name}…", flush=True)
+                n_frames = record_episode(model_path, video_path, duration=duration)
                 print(f"    → {n_frames} frames, {video_path.stat().st_size // 1024} KB")
 
         if not video_path.exists():
-            print(f"[skip] video no encontrado: {video_name}")
+            print(f"[skip] video no encontrado ({duration}s): {video_name}")
             continue
 
         html_entries.append(
@@ -258,7 +274,7 @@ def collect_entries(results: list[dict], args: argparse.Namespace) -> list[dict]
                 "crash_rate": row["crash_rate"],
                 "mean_episode_length": row["mean_episode_length"],
                 "success": row["success"],
-                "video_file": f"videos/{video_name}",
+                "video_file": f"videos/d{duration}/{video_name}",
             }
         )
 
@@ -270,26 +286,30 @@ def main() -> None:
     results = load_results()
     results.sort(key=lambda r: (r["hidden"], r["timesteps"]))
 
-    base_entries = collect_entries(results, args)
-    if not base_entries:
-        raise SystemExit("No hay videos para embeber.")
+    for duration, player_id, embed_path, blurb in VIDEO_BLOCKS:
+        base_entries = collect_entries(results, args, duration=duration)
+        if not base_entries:
+            raise SystemExit(f"No hay videos para embeber ({duration}s).")
 
-    standalone_entries = [
-        {**e, "video": e["video_file"]} for e in base_entries
-    ]
-    embed_entries = []
-    print("Codificando videos en base64 para embeber en Lab4.qmd…")
-    for e in base_entries:
-        video_path = VIDEOS_DIR / Path(e["video_file"]).name
-        embed_entries.append({**e, "video": video_data_url(video_path)})
+        print(f"Codificando videos {duration}s en base64…")
+        embed_entries = []
+        for e in base_entries:
+            video_path = OUT_DIR / e["video_file"]
+            embed_entries.append({**e, "video": video_data_url(video_path)})
 
-    HTML_PATH.write_text(build_standalone_page(standalone_entries), encoding="utf-8")
-    EMBED_PATH.write_text(build_embed_fragment(embed_entries), encoding="utf-8")
+        embed_path.write_text(
+            build_css_only_player(
+                embed_entries,
+                standalone=False,
+                player_id=player_id,
+                duration=duration,
+                blurb=blurb,
+            ),
+            encoding="utf-8",
+        )
 
-    embed_kb = EMBED_PATH.stat().st_size // 1024
-    print(f"\nStandalone:  {HTML_PATH}")
-    print(f"Embed:       {EMBED_PATH} ({embed_kb} KB)")
-    print(f"Videos:      {VIDEOS_DIR}/ ({len(base_entries)} archivos)")
+        embed_kb = embed_path.stat().st_size // 1024
+        print(f"  Embed {duration}s: {embed_path} ({embed_kb} KB, {len(base_entries)} videos)")
 
 
 if __name__ == "__main__":

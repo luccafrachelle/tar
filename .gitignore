@@ -3,10 +3,24 @@
 **/__pycache__/
 *.pyc
 **/.quarto/
+/.quarto/
+
+# HTML generado junto a fuentes (no versionar)
+/index.html
+/index_files/
+/lab*.html
+/Lab*_files/
+labs/**/*.html
+labs/**/*_files/
+entrega/**/*.html
+entrega/**/*_files/
+Lab4_files/
+Lab4_results/
 
 # Artefactos pesados opcionales (descomentar si no querés versionar modelos)
 # labs/lab4/results/pregunta3/models/
 
-# HTML y *_files/ se versionan para GitHub Pages (deploy estático, sin render en CI)
-
-/.quarto/
+# Sitio publicado (GitHub Pages) — solo HTML embebido en site/
+!site/
+site/.venv/
+site/assets/
