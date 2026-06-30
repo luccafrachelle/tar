@@ -1,6 +1,6 @@
 # TAR — Aprendizaje por Refuerzo
 
-Material del curso **Aprendizaje por Refuerzo** (Maestría en Inteligencia Artificial y Sistemas de Datos), Facultad de Ingeniería, Universidad de la República (UdelaR–FING–IIE).
+Material del curso **Aprendizaje por Refuerzo**, Facultad de Ingeniería, Universidad de la República (UdelaR–FING–IIE).
 
 **Autor:** Lucca Frachelle · edición 2026
 
