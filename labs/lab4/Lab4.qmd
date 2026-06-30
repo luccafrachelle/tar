@@ -1,6 +1,6 @@
 ---
 title: "Lab 4"
-date: 2026-06-26
+date: 2026-06-30
 format:
   html:
     code-fold: true
@@ -443,13 +443,6 @@ configuraciones con choque marginal o en $H=256$ con $T$ mal elegido. Comparar
 ambos bloques ayuda a separar “evita choques dentro del horizonte de recompensa”
 de “mantiene una trayectoria coherente al salir de la rotonda”.
 
-Ejemplo concreto: **`[16,16]` + $T=1\,000$** en el bloque de $11$ s muestra la
-estrategia pasiva descrita arriba (poco movimiento, sin salida); en $20$ s sigue
-dando vueltas sin objetivo claro — coherente con recompensa $9.17$ sin choques
-pero sin superar el umbral. En cambio, las configuraciones ganadoras en $20$ s
-tienden a **salir de la rotonda** y mantenerse en la vía; **`[256,256]` +
-$T=50\,000$** (si se observa en video) debería contrastar con choques frecuentes
-y trayectorias erráticas, alineado con el **73%** de colisión en tabla.
 
 # Parte 2 — Propiedades teóricas de PPO
 
