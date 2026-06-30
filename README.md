@@ -1,26 +1,31 @@
-# TAR 2026 — Lucca Frachelle
+# TAR — Aprendizaje por Refuerzo
 
-Material del Taller de Aprendizaje por Refuerzo (Maestría).
+Material del curso **Aprendizaje por Refuerzo** (Maestría en Inteligencia Artificial y Sistemas de Datos), Facultad de Ingeniería, Universidad de la República (UdelaR–FING–IIE).
 
-## Publicar sitio
+**Autor:** Lucca Frachelle · edición 2026
 
-```bash
-bash scripts/render-site.sh
-git add site/
-git commit -m "Actualizar sitio"
-git push
-```
+## Sitio web
 
-GitHub Pages publica la carpeta `site/` (workflow en `.github/workflows/pages.yml`).
+Todo el material está publicado en:
 
-Cada página se renderiza con `embed-resources: true` (HTML único, sin carpetas `*_files/`).
+**[https://luccafrachelle.github.io/tar/](https://luccafrachelle.github.io/tar/)**
 
-## Estructura
+## Contenido
 
-```
-index.qmd          portada
-labs/lab*/Lab*.qmd laboratorios
-entrega/rfhf/      slides y notas RLHF
-site/              HTML publicado
-_quarto.yml        estilos y embed-resources globales
-```
+### Laboratorios
+
+Prácticos del taller, en HTML autocontenido:
+
+| Lab | Tema |
+|-----|------|
+| [Lab 1](https://luccafrachelle.github.io/tar/labs/lab1.html) | Procesos de decisión markovianos (MDP) |
+| [Lab 2](https://luccafrachelle.github.io/tar/labs/lab2.html) | Q-Learning y TD-Learning |
+| [Lab 3](https://luccafrachelle.github.io/tar/labs/lab3.html) | Actor-Critic |
+| [Lab 4](https://luccafrachelle.github.io/tar/labs/lab4.html) | Proximal Policy Optimization (PPO) |
+
+### Entrega final
+
+Trabajo sobre **InstructGPT** y aprendizaje por refuerzo con retroalimentación humana (RLHF):
+
+- **[Slides](https://luccafrachelle.github.io/tar/slides.html)** — presentación de la entrega
+- **[Notas](https://luccafrachelle.github.io/tar/notas.html)** — apuntes para acompañar las slides
