@@ -1,15 +1,15 @@
 ---
 title: "InstructGPT"
-subtitle: "RLHF con SFT, Reward Model y PPO"
+subtitle: "Una intro a RLHF"
 date: today
 format: revealjs
 ---
 
 ## Plan (~10 min, esperemos!!!)
 
-1. **Pre-entrenamiento** — autoregresión, desalineamiento
-2. **SFT** — notación $x$/$y$, imitar demos humanas
-3. **RM + PPO** — preferencias y RL (InstructGPT)
+1. **Intro LLMs y pre-entrenamiento**
+2. **SFT**
+3. **RLHF + PPO** 
 
 # Parte 1
 
@@ -19,7 +19,9 @@ Pre-entrenamiento
 
 **Autoregresión**: predecir el siguiente token dado el contexto.
 
-$$\pi_\theta(w) = \prod_{t=1}^{N} \pi_\theta(w_t \mid w_{<t}), \qquad \mathcal{L}_{\mathrm{LM}} = - \sum_{t=1}^{N} \log \pi_\theta(w_t \mid w_{<t})$$
+$$
+\pi_\theta(w) = \prod_{t=1}^{N} \pi_\theta(w_t \mid w_{<t}), \qquad \mathcal{L}_{\mathrm{LM}} = - \sum_{t=1}^{N} \log \pi_\theta(w_t \mid w_{<t})
+$$
 
 - Un **Transformer** implementa $\pi_\theta$ (self-attention + softmax sobre el vocabulario)
 - Un **LLM** = Transformer grande entrenado sobre texto masivo
@@ -35,7 +37,7 @@ $$\pi_\theta(w) = \prod_{t=1}^{N} \pi_\theta(w_t \mid w_{<t}), \qquad \mathcal{L
 Pre-entrenamiento imita el **corpus**, no alinea con lo que queremos de un asistente:
 
 - No sigue instrucciones, puede alucinar o ser tóxico
-- **Post-entrenamiento**: SFT → RM → PPO
+- **Post-entrenamiento / Alignment**: SFT → RM → PPO
 
 # Parte 2
 
@@ -54,15 +56,12 @@ $$\pi_\theta(y \mid x) = \prod_{t=1}^{T} \pi_\theta(y_t \mid x, y_{<t})$$
 
 $$\mathcal{L}_{\mathrm{SFT}}(\theta) = - \sum_{(x, y^\star)} \sum_{t} \log \pi_\theta(y^\star_t \mid x, y^\star_{<t})$$
 
-~13k demos → $\pi^{\mathrm{SFT}}$ (ancla KL en PPO).
+~13k demos → $\pi^{\mathrm{SFT}}$
 
 # Parte 3
 
 RM + PPO
 
-## El LLM como RL
-
-Generar una respuesta = un **episodio** de decisión secuencial
 
 ## Pipeline InstructGPT
 
@@ -80,31 +79,32 @@ $$\mathcal{L}_{\mathrm{RM}}(\phi) = -\mathbb{E}\Big[\log \sigma\!\big(r_\phi(x, 
 
 ![](../../assets/instructgpt/pref_rm_training.png){width=70% fig-align="center"}
 
-## Mapeo completo
+## Modelando el problema de RL
 
-| TAR (RL) | LLM / RLHF | Etapa |
-|---|---|---|
-| Estado $s_t$ | Contexto $(x, y_{<t})$ | — |
-| Acción $a_t$ | Token $y_t$ | — |
-| Policy $\pi_\theta(a \mid s)$ | $\pi_\theta(y_t \mid x, y_{<t})$ | pre-train, SFT, PPO |
-| Trayectoria $\tau$ | Respuesta $y = (y_1, \ldots, y_T)$ | — |
-| Episodio | prompt $x$ → respuesta $y$ | rollouts PPO |
-| **Reward** $r$ | **$r_\phi(x, y)$** del RM | **PPO maximiza esto** |
-| Labels token a token | Demos $(x, y^\star)$, loss NLL | **SFT** → $\pi^{\mathrm{SFT}}$ |
-| Preferencias humanas | Rankings $y_w \succ y_l$ | **RM** (Bradley-Terry) |
-| Policy gradient + clipping | **PPO** (+ critic GAE) | **PPO-ptx** = InstructGPT |
+Querés una política $\pi_\theta$ que genere respuestas con **alta reward** según el RM $r_\phi$ entrenado en preferencias humanas. Esto es un problema de RL.
+
+| Concepto | En RLHF |
+|---|---|
+| **Estado** $s_t$ | $(x, y_{<t})$ — prompt $x$ + tokens ya generados |
+| **Acción** $a_t$ | Token $y_t$ (siguiente palabra de la respuesta) |
+| **Policy** $\pi_\theta$ | $\pi_\theta(y_t \mid x, y_{<t})$ — lo que **optimizás** con PPO |
+| **Episodio** | Un prompt $x$ → muestreás una respuesta $y$ hasta el fin |
+| **Reward** $r$ | $r_\phi(x, y)$ del RM (no hay reward por token) |
+| **Objetivo** | Maximizar $\mathbb{E}[r_\phi(x,y)]$ — policy que **maximice** la reward del RM |
 
 ::: {.small}
-**SFT** imita demos fijas; el **RM** puntúa cualquier respuesta; **PPO** usa $r_\phi$ como reward (no hay $y^\star$) y policy gradient para explorar respuestas mejores.
+Cada rollout PPO: fijás $x$, la policy genera $y$, el RM puntúa la respuesta completa. No hay $y^\star$ — explorás con policy gradient qué respuestas suben $r_\phi$.
 :::
 
-## PPO — Eq. (2)
+## PPO
 
-Muestrear $y \sim \pi^{\mathrm{RL}}(\cdot \mid x)$; maximizar $r_\phi(x,y)$ **sin alejarse** de $\pi^{\mathrm{SFT}}$:
+**Objetivo RL** del paper (Eq. 2a): maximizar reward del RM **sin alejarse** de $\pi^{\mathrm{SFT}}$.
 
-$$\mathbb{E}\Big[r_\phi(x,y) - \beta \log \frac{\pi^{\mathrm{RL}}(y \mid x)}{\pi^{\mathrm{SFT}}(y \mid x)}\Big]$$
+Muestreás $y \sim \pi^{\mathrm{RL}}(\cdot \mid x)$ y optimizás:
 
-**PPO-ptx** (= InstructGPT): suma loss de pre-entrenamiento ($\gamma = 27.8$) para no perder capacidad lingüística (*alignment tax*).
+$$\mathcal{J}_{\mathrm{PPO}}(\phi) = \mathbb{E}_{x,y \sim \pi^{\mathrm{RL}}}\Big[\underbrace{r_\phi(x,y)}_{\text{reward RM}} - \underbrace{\beta \log \frac{\pi^{\mathrm{RL}}(y \mid x)}{\pi^{\mathrm{SFT}}(y \mid x)}}_{\text{penalización KL vs. SFT}}\Big]$$
+
+**PPO-ptx** (= InstructGPT, Eq. 2b): $\mathcal{J}_{\mathrm{PPO-ptx}} = \mathcal{J}_{\mathrm{PPO}} + \gamma\,\mathbb{E}[\log \pi^{\mathrm{RL}}(x)]$ — mezcla pre-entrenamiento ($\gamma = 27.8$) para no perder capacidad lingüística (*alignment tax*).
 
 ## Resultados
 
@@ -121,7 +121,9 @@ $$\mathbb{E}\Big[r_\phi(x,y) - \beta \log \frac{\pi^{\mathrm{RL}}(y \mid x)}{\pi
 ## Referencias
 
 ::: {.small}
-- Ouyang et al. (2022). *InstructGPT.* [arXiv:2203.02155](https://arxiv.org/abs/2203.02155)
+- Ouyang et al. (2022). *Training language models to follow instructions with human feedback* (el principal). [arXiv:2203.02155](https://arxiv.org/abs/2203.02155)
+- Stiennon et al. (2020). *Learning to summarize with human feedback* — RM + RL con preferencias humanas (precursor directo). [arXiv:2009.01325](https://arxiv.org/abs/2009.01325)
+- Lambert, N. [*The RLHF Book*](https://rlhfbook.com) · [curso](https://rlhfbook.com/course)
 :::
 
 # ¿Preguntas?
